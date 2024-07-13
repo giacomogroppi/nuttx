@@ -697,6 +697,23 @@ config LSM6DSL_I2C_FREQUENCY
 	range 1 400000
 	depends on SENSORS_LSM6DSL
 
+config SENSORS_LSM6DSO32
+	bool "LSM6DSO32 IMU support."
+	default n
+	select I2C
+	---help---
+		Enable driver support for the STMicro LSM6DSL.
+
+if SENSORS_LSM6DSO32
+
+config LSM6DSO32_DEBUG
+	bool "Debug support for the LSM6DSO32"
+	default n
+	---help---
+		Enables debug features for the LSM6DSO32
+
+endif # SENSORS_LSM6DSO32
+
 config SENSORS_LSM9DS1
 	bool "STMicro LSM9DS1 support"
 	default n
