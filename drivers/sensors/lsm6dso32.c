@@ -302,6 +302,56 @@ enum lsm6dso32_advembregp1_e
                                  * delta time (high byte). */
 };
 
+/* Sensor hub registers. See section 14 of data sheet, section 15 for
+ * descriptions. */
+enum lsm6dso32_senreg_e
+{
+    SENSOR_HUB_1 = 0x02,  /* Sensor hub output register. */
+    SENSOR_HUB_2 = 0x03,  /* Sensor hub output register. */
+    SENSOR_HUB_3 = 0x04,  /* Sensor hub output register. */
+    SENSOR_HUB_4 = 0x05,  /* Sensor hub output register. */
+    SENSOR_HUB_5 = 0x06,  /* Sensor hub output register. */
+    SENSOR_HUB_6 = 0x07,  /* Sensor hub output register. */
+    SENSOR_HUB_7 = 0x08,  /* Sensor hub output register. */
+    SENSOR_HUB_8 = 0x09,  /* Sensor hub output register. */
+    SENSOR_HUB_9 = 0x0A,  /* Sensor hub output register. */
+    SENSOR_HUB_10 = 0x0B, /* Sensor hub output register. */
+    SENSOR_HUB_11 = 0x0C, /* Sensor hub output register. */
+    SENSOR_HUB_12 = 0x0D, /* Sensor hub output register. */
+    SENSOR_HUB_13 = 0x0E, /* Sensor hub output register. */
+    SENSOR_HUB_14 = 0x0F, /* Sensor hub output register. */
+    SENSOR_HUB_15 = 0x10, /* Sensor hub output register. */
+    SENSOR_HUB_16 = 0x11, /* Sensor hub output register. */
+    SENSOR_HUB_17 = 0x12, /* Sensor hub output register. */
+    SENSOR_HUB_18 = 0x13, /* Sensor hub output register. */
+    MASTER_CONFIG = 0x14, /* Master configuration register. */
+
+    SLV0_ADD = 0x15,    /* I2C slave address of sensor 1 register. */
+    SLV0_SUBADD = 0x16, /* Address of register on sensor 1 external
+                         * register. */
+    SLV0_CONFIG = 0x17, /* Sensor 1 configuration and sensor hub settings
+                         * register. */
+    SLV2_ADD = 0x28,    /* I2C slave address of sensor 2 register. */
+    SLV2_SUBADD = 0x29, /* Address of register on sensor 2 external
+                         * register. */
+    SLV2_CONFIG = 0x2A, /* Sensor 2 configuration and sensor hub settings
+                         * register. */
+    SLV1_ADD = 0x3B,    /* I2C slave address of sensor 3 register. */
+    SLV1_SUBADD = 0x3C, /* Address of register on sensor 3 external
+                         * register. */
+    SLV1_CONFIG = 0x3D, /* Sensor 3 configuration and sensor hub settings
+                         * register. */
+    SLV3_ADD = 0x4E,    /* I2C slave address of sensor 4 register. */
+    SLV3_SUBADD = 0x4F, /* Address of register on sensor 4 external
+                         * register. */
+    SLV3_CONFIG = 0x20, /* Sensor 4 configuration and sensor hub settings
+                         * register. */
+
+    DATAWRITE_SLV0 = 0x21, /* Data to be written to the slave device
+                            * register. */
+    STATUS_MASTER = 0x22,  /* Sensor hub source register. */
+};
+
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
@@ -324,8 +374,7 @@ static int lsm6dso32_unlink (FAR struct inode *inode);
  * Private Data
  ****************************************************************************/
 
-static const struct file_operations g_lsm6dso32fops =
-{
+static const struct file_operations g_lsm6dso32fops = {
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
     .open = lsm6dso32_open,
     .close = lsm6dso32_close,
