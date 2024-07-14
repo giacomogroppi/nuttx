@@ -134,6 +134,53 @@ enum lsm6dso32_reg_e {
     FIFO_DATA_OUT_Z_H = 0x7E,  /**< FIFO data output Z (high byte). */
 };
 
+/** Embedded functions registers. See section 10 of data sheet, and section 11 for description. */
+enum lsm6dso32_embreg_e {
+    PAGE_SEL = 0x02,               /**< Enable advanced features dedicated page. */
+    EMB_FUNC_EN_A = 0x04,          /**< Embedded functions enable register. */
+    EMB_FUNC_EN_B = 0x05,          /**< Embedded functions enable register. */
+    PAGE_ADDRESS = 0x08,           /**< Page address register. */
+    PAGE_VALUE = 0x09,             /**< Page value register. */
+    EMB_FUNC_INT1 = 0x0A,          /**< INT1 pin control register. */
+    FSM_INT1_A = 0x0B,             /**< INT1 pin control register. */
+    FSM_INT1_B = 0x0C,             /**< INT1 pin control register. */
+    EMB_FUNC_INT2 = 0x0E,          /**< INT2 pin control register. */
+    FSM_INT2_A = 0x0F,             /**< INT2 pin control register. */
+    FSM_INT2_B = 0x10,             /**< INT2 pin control register. */
+    EMB_FUNC_STATUS = 0x12,        /**< Embedded function status register. */
+    FSM_STATUS_A = 0x13,           /**< Finite state machine status register. */
+    FSM_STATUS_B = 0x14,           /**< Finite state machine status register. */
+    PAGE_RW = 0x17,                /**< Enable read and write mode of advanced features dedicated page. */
+    EMB_FUNC_FIFO_CFG = 0x44,      /**< Embedded functions batching configuration register. */
+    FSM_ENABLE_A = 0x46,           /**< FSM enable register. */
+    FSM_ENABLE_B = 0x47,           /**< FSM enable register. */
+    FSM_LONG_COUNTER_L = 0x48,     /**< FSM long counter status register. */
+    FSM_LONG_COUNTER_H = 0x49,     /**< FSM long counter status register. */
+    FSM_LONG_COUNTER_CLEAR = 0x4A, /**< FSM long counter reset register. */
+    FSM_OUTS1 = 0x4C,              /**< FSM output register. */
+    FSM_OUTS2 = 0x4D,              /**< FSM output register. */
+    FSM_OUTS3 = 0x4E,              /**< FSM output register. */
+    FSM_OUTS4 = 0x4F,              /**< FSM output register. */
+    FSM_OUTS5 = 0x50,              /**< FSM output register. */
+    FSM_OUTS6 = 0x51,              /**< FSM output register. */
+    FSM_OUTS7 = 0x52,              /**< FSM output register. */
+    FSM_OUTS8 = 0x53,              /**< FSM output register. */
+    FSM_OUTS9 = 0x54,              /**< FSM output register. */
+    FSM_OUTS10 = 0x55,             /**< FSM output register. */
+    FSM_OUTS11 = 0x56,             /**< FSM output register. */
+    FSM_OUTS12 = 0x57,             /**< FSM output register. */
+    FSM_OUTS13 = 0x58,             /**< FSM output register. */
+    FSM_OUTS14 = 0x59,             /**< FSM output register. */
+    FSM_OUTS15 = 0x5A,             /**< FSM output register. */
+    FSM_OUTS16 = 0x5B,             /**< FSM output register. */
+    EMB_FUNC_ODR_CFG_B = 0x5F,     /**< Finite state machine output data rate configuration register. */
+    STEP_COUNTER_L = 0x62,         /**< Step counter output register (low byte). */
+    STEP_COUNTER_H = 0x63,         /**< Step counter output register (high byte). */
+    EMB_FUNC_SRC = 0x64,           /**< Embedded function source register. */
+    EMB_FUNC_INIT_A = 0x66,        /**< Embedded functions initialization register. */
+    EMB_FUNC_INIT_B = 0x67,        /**< Embedded functions initialization register. */
+};
+
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
