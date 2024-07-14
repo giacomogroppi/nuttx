@@ -181,6 +181,45 @@ enum lsm6dso32_embreg_e {
     EMB_FUNC_INIT_B = 0x67,        /**< Embedded functions initialization register. */
 };
 
+/** Embedded advanced features registers for page 0. See section 12 of data sheet, section 13 for descriptions. */
+enum lsm6dso32_advembregp0_e {
+    MAG_SENSITIVITY_L = 0xBA, /**< External magnetometer sensitivity value register for FSM (low byte). */
+    MAG_SENSITIVITY_H = 0xBB, /**< External magnetometer sensitivity value register for FSM (high byte). */
+    MAG_OFFX_L = 0xC0,        /**< Offset for x-axis hard-iron compensation register (low byte). */
+    MAG_OFFX_H = 0xC1,        /**< Offset for x-axis hard-iron compensation register (high byte). */
+    MAG_OFFY_L = 0xC2,        /**< Offset for y-axis hard-iron compensation register (low byte). */
+    MAG_OFFY_H = 0xC3,        /**< Offset for y-axis hard-iron compensation register (high byte). */
+    MAG_OFFZ_L = 0xC4,        /**< Offset for z-axis hard-iron compensation register (low byte). */
+    MAG_OFFZ_H = 0xC5,        /**< Offset for z-axis hard-iron compensation register (high byte). */
+    MAG_SI_XX_L = 0xC6,       /**< Soft-iron (3x3 symmetric) matrix correction register (low byte). */
+    MAG_SI_XX_H = 0xC7,       /**< Soft-iron (3x3 symmetric) matrix correction register (high byte). */
+    MAG_SI_XY_L = 0xC8,       /**< Soft-iron (3x3 symmetric) matrix correction register (low byte). */
+    MAG_SI_XY_H = 0xC9,       /**< Soft-iron (3x3 symmetric) matrix correction register (high byte). */
+    MAG_SI_XZ_L = 0xCA,       /**< Soft-iron (3x3 symmetric) matrix correction register (low byte). */
+    MAG_SI_XZ_H = 0xCB,       /**< Soft-iron (3x3 symmetric) matrix correction register (high byte). */
+    MAG_SI_YY_L = 0xCC,       /**< Soft-iron (3x3 symmetric) matrix correction register (low byte). */
+    MAG_SI_YY_H = 0xCD,       /**< Soft-iron (3x3 symmetric) matrix correction register (high byte). */
+    MAG_SI_YZ_L = 0xCE,       /**< Soft-iron (3x3 symmetric) matrix correction register (low byte). */
+    MAG_SI_YZ_H = 0xCF,       /**< Soft-iron (3x3 symmetric) matrix correction register (high byte). */
+    MAG_SI_ZZ_L = 0xD0,       /**< Soft-iron (3x3 symmetric) matrix correction register (low byte). */
+    MAG_SI_ZZ_H = 0xD1,       /**< Soft-iron (3x3 symmetric) matrix correction register (high byte). */
+    MAG_CFG_A = 0xD4,         /**< External magnetometer coordinates (z and y axes) rotation register. */
+    MAG_CFG_B = 0xD5,         /**< External magnetometer coordinates (z and y axes) rotation register. */
+};
+
+/** Embedded advanced features registers for page 1. See section 12 of data sheet, section 13 for descriptions. */
+enum lsm6dso32_advembregp1_e {
+    FSM_LC_TIMEOUT_L = 0x7A,    /**< FSM long counter timeout register (low byte). */
+    FSM_LC_TIMEOUT_H = 0x7B,    /**< FSM long counter timeout register (high byte). */
+    FSM_PROGRAMS = 0x7C,        /**< FSM programs register. */
+    FSM_START_ADD_L = 0x7E,     /**< FSM start address register (low byte). */
+    FSM_START_ADD_H = 0x7F,     /**< FSM start address register (high byte). */
+    PEDO_CMD_REG = 0x83,        /**< Pedometer configuration register. */
+    PEDO_DEB_STEPS_CONF = 0x84, /**< Pedometer debounce configuration register. */
+    PEDO_SC_DELTAT_L = 0xD0,    /**< Time period register for step detection on delta time (low byte). */
+    PEDO_SC_DELTAT_H = 0xD1,    /**< Time period register for step detection on delta time (high byte). */
+};
+
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
