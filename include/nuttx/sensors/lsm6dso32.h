@@ -21,4 +21,35 @@
 #ifndef __INCLUDE_NUTTX_SENSORS_LSM6DSO32_H
 #define __INCLUDE_NUTTX_SENSORS_LSM6DSO32_H
 
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
+#include <nuttx/sensors/ioctl.h>
+
+/****************************************************************************
+ * Public Types
+ ****************************************************************************/
+
+struct i2c_master_s; /* Forward reference */
+
+/****************************************************************************
+ * Name: lsm6dso32_register
+ *
+ * Description:
+ *   Registers the LSM6DSO32 interface as 'devpath'
+ *
+ * Input Parameters:
+ *   devpath  - The full path to the interface to register. E.g., "/dev/imu0"
+ *   i2c      - I2C interface for chip communications
+ *   addr     - I2C slave address for the sensor
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int lsm6dso32_register(FAR const char *path, struct i2c_master_s *i2c,
+                       uint8_t addr);
+
 #endif // __INCLUDE_NUTTX_SENSORS_LSM6DSO32_H

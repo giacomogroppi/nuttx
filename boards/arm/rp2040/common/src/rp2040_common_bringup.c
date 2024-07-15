@@ -73,6 +73,11 @@
 #include "rp2040_max6675.h"
 #endif
 
+#ifdef CONFIG_SENSORS_LSM6DSO32
+#include <nuttx/sensors/lsm6dso32.h>
+#include "rp2040_i2c.h"
+#endif
+
 #ifdef CONFIG_RP2040_PWM
 #include "rp2040_pwm.h"
 #include "rp2040_pwmdev.h"
@@ -478,6 +483,17 @@ int rp2040_common_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize MAX6675 driver: %d\n", ret);
+    }
+#endif
+
+
+#ifdef CONFIG_SENSORS_LSM6DSO32
+  /* Try to register LSM6DSO32 device as /dev/imu0 at I2C0 */
+
+  lsm6dso32_register("/dev/imu0", rp2040_i2cbus_initialize(0), CONFIG_LSM6DSO32_ADDR);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize LSM6DSO32 driver: %d\n", ret);
     }
 #endif
 

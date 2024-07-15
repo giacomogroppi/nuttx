@@ -43,6 +43,14 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+#ifndef CONFIG_LSM6DSO32_FREQ
+#define CONFIG_LSM6DSO32_FREQ I2C_SPEED_FAST
+#endif // CONFIG_LSM6DSO32_FREQ
+
+#ifndef CONFIG_LSM6DSO32_ADDR
+#define CONFIG_LSM6DSO32_ADDR 0x6b
+#endif // CONFIG_LSM6DSO32_ADDR
+
 /****************************************************************************
  * Private
  ****************************************************************************/
@@ -422,7 +430,7 @@ static int lsm6dso32_read_regs(struct lsm6dso32_dev_s const *dev, uint8_t reg,
         /* Write register address. */
 
         {
-            .frequency = I2C_SPEED_FAST,
+            .frequency = CONFIG_LSM6DSO32_FREQ,
             .addr = dev->addr,
             .flags = I2C_M_NOSTOP,
             .buffer = &reg,
@@ -432,7 +440,7 @@ static int lsm6dso32_read_regs(struct lsm6dso32_dev_s const *dev, uint8_t reg,
         /* Read return from registers. */
 
         {
-            .frequency = I2C_SPEED_FAST,
+            .frequency = CONFIG_LSM6DSO32_FREQ,
             .addr = dev->addr,
             .flags = 0,
             .buffer = data,
@@ -475,7 +483,7 @@ static int lsm6dso32_write_regs(struct lsm6dso32_dev_s const *dev,
 
         {
             .addr = dev->addr,
-            .frequency = I2C_SPEED_FAST,
+            .frequency = CONFIG_LSM6DSO32_FREQ,
             .flags = I2C_M_NOSTOP,
             .buffer = &reg,
             .length = sizeof(reg),
@@ -485,14 +493,14 @@ static int lsm6dso32_write_regs(struct lsm6dso32_dev_s const *dev,
 
         {
             .addr = dev->addr,
-            .frequency = I2C_SPEED_FAST,
+            .frequency = CONFIG_LSM6DSO32_FREQ,
             .flags = 0,
             .buffer = data,
             .length = nbytes,
         },
     };
 
-    return 0;
+    return I2C_TRANSFER(dev->i2c, msg, 2);
 }
 
 /****************************************************************************
@@ -550,6 +558,9 @@ int lsm6dso32_register(FAR const char *path, struct i2c_master_s *i2c,
                        uint8_t addr) {
     FAR struct lsm6dso32_dev_s *priv;
     int err;
+
+    DEBUGASSERT(i2c != NULL);
+    DEBUGASSERT(addr == 0x6b || addr == 0x6a);
 
     /* Initialize the device structure. */
 

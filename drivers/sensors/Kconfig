@@ -712,6 +712,20 @@ config LSM6DSO32_DEBUG
 	---help---
 		Enables debug features for the LSM6DSO32
 
+config LSM6DSO32_ADDR
+	bool "LSM6DSO32 I2C address"
+    default 0x6b
+	range 0x6a 0x6b
+	---help---
+		Enables debug features for the LSM6DSO32
+
+config LSM6DSO32_FREQ
+	bool "LSM6DSO32 I2C frequency"
+    default 400000
+	range 1 400000
+	---help---
+		I2C frequency of LSM6DSO32
+
 endif # SENSORS_LSM6DSO32
 
 config SENSORS_LSM9DS1
