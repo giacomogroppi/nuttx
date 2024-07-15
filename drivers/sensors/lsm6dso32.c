@@ -377,7 +377,7 @@ static int lsm6dso32_unlink(FAR struct inode *inode);
  * Private Data
  ****************************************************************************/
 
-static const struct file_operations g_lsm6dso32fops = {
+static const struct file_operations g_lsm6dso32_fops = {
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
     .open = lsm6dso32_open,
     .close = lsm6dso32_close,
@@ -520,7 +520,7 @@ static int lsm6dso32_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
     FAR struct lsm6dso32_dev_s *priv = inode->i_private;
     int err = OK;
 
-    switch(cmd) {
+    switch (cmd) {
     case SNIOC_WHO_AM_I:
         err = lsm6dso32_read_reg(priv, WHO_AM_I, (uint8_t *)arg);
         break;
@@ -531,5 +531,52 @@ static int lsm6dso32_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: lsm6dso32_register
+ *
+ * Description:
+ *   Registers the LSM6DSO32 interface as 'devpath'
+ *
+ * Input Parameters:
+ *   devpath  - The full path to the interface to register. E.g., "/dev/imu0"
+ *   i2c      - I2C interface for chip communications
+ *   addr     - I2C slave address for the sensor
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int lsm6dso32_register(FAR const char *path, struct i2c_master_s *i2c,
+                       uint8_t addr)
+{
+    FAR struct lsm6dso32_dev_s *priv;
+    int err;
+
+    /* Initialize the device structure. */
+
+    priv = kmm_malloc(sizeof(struct lsm6dso32_dev_s));
+    if (priv == NULL) {
+        snerr("ERROR: Failed to allocate LSM6DSO32 device instance.\n");
+        return -ENOMEM;
+    }
+
+    memset(priv, 0, sizeof(*priv));
+    err = nxmutex_init(&priv->devlock);
+    if (err) return err;
+
+    /* Register the device node. */
+
+    err = register_driver(path, &g_lsm6dso32_fops, 0666, priv);
+    if (err) {
+        snerr("ERROR: Failed to register LSM6DSO32 interface: %d\n", err);
+        nxmutex_destroy(&priv->devlock);
+        kmm_free(priv);
+        return err;
+    }
+
+    return 0;
+}
 
 #endif /* defined(CONFIG_I2C) && defined(CONFIG_SENSORS_LSM6DSO32) */
