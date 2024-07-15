@@ -122,8 +122,9 @@ enum lsm6dso32_reg_e
 
     EMB_FUNC_STATUS_MAINPAGE = 0x35, /* Embedded function status register. */
 
-    FSM_STATUS_A_MAINPAGE = 0x36,  /* Finite state machine status register. */
-    FSM_STATUS_B_MAINPAGE = 0x37,  /* Finite state machine status register. */
+    FSM_STATUS_A_MAINPAGE = 0x36, /* Finite state machine status register. */
+    FSM_STATUS_B_MAINPAGE = 0x37, /* Finite state machine status register. */
+
     STATUS_MASTER_MAINPAGE = 0x39, /* Sensor hub source register. */
     FIFO_STATUS1 = 0x3a,           /* FIFO status register 1. */
     FIFO_STATUS2 = 0x3b,           /* FIFO status register 2. */
@@ -132,8 +133,8 @@ enum lsm6dso32_reg_e
     TIMESTAMP2 = 0x42,             /* Timestamp output register 3. */
     TIMESTAMP3 = 0x43,             /* Timestamp output register 4 (MSB). */
 
-    TAP_CFG0 = 0x56, /* Activity/inactivity functions, config of filtering and
-                      * tap recognition functions. */
+    TAP_CFG0 = 0x56, /* Activity/inactivity functions, config of filtering
+                      * and tap recognition functions. */
     TAP_CFG1 = 0x57, /* Tap configuration register. */
     TAP_CFG2 = 0x58, /* Enables interrupt and inactivity functions, and tap
                       * recognition functions. */
@@ -143,8 +144,8 @@ enum lsm6dso32_reg_e
     INT_DUR2 = 0x5a,    /* Tap recognition function setting register. */
     WAKE_UP_THS = 0x5b, /* Single/double-tap selection and wake-up
                          * configuration. */
-    WAKE_UP_DUR = 0x5c, /* Free-fall, wakeup and sleep mode functions duration
-                         * setting register. */
+    WAKE_UP_DUR = 0x5c, /* Free-fall, wakeup and sleep mode functions
+                         * duration setting register. */
     FREE_FALL = 0x5d,   /* Free-fall function duration setting register. */
     MD1_CFG = 0x5e,     /* Functions routing on INT1 register. */
     MD2_CFG = 0x5f,     /* Functions routing on INT2 register. */
@@ -185,8 +186,9 @@ enum lsm6dso32_embreg_e
     EMB_FUNC_STATUS = 0x12, /* Embedded function status register. */
     FSM_STATUS_A = 0x13,    /* Finite state machine status register. */
     FSM_STATUS_B = 0x14,    /* Finite state machine status register. */
-    PAGE_RW = 0x17,         /* Enable read and write mode of advanced features
-                             * dedicated page. */
+
+    PAGE_RW = 0x17, /* Enable read and write mode of advanced features
+                     * dedicated page. */
 
     EMB_FUNC_FIFO_CFG = 0x44, /* Embedded functions batching configuration
                                * register. */
@@ -405,20 +407,18 @@ static const struct file_operations g_lsm6dso32_fops = {
  * Name: lsm6dso32_read_regs
  *
  * Description:
- *    Read `nbytes` from the LSM6DSO32 into `data` buffer starting at register
- *    address `reg`.
+ *    Read `nbytes` from the LSM6DSO32 into `data` buffer starting at
+ *register address `reg`.
  *
  * Returns: 0 if okay, negated errno otherwise.
  *
  ****************************************************************************/
 
 static int lsm6dso32_read_regs(struct lsm6dso32_dev_s const *dev, uint8_t reg,
-                               uint8_t *data, ssize_t nbytes)
-{
+                               uint8_t *data, ssize_t nbytes) {
     DEBUGASSERT(nbytes > 0);
 
     struct i2c_msg_s msg[2] = {
-
         /* Write register address. */
 
         {
@@ -454,8 +454,7 @@ static int lsm6dso32_read_regs(struct lsm6dso32_dev_s const *dev, uint8_t reg,
  ****************************************************************************/
 
 static int lsm6dso32_read_reg(struct lsm6dso32_dev_s const *dev, uint8_t reg,
-                              uint8_t *data)
-{
+                              uint8_t *data) {
     return lsm6dso32_read_regs(dev, reg, data, 1);
 }
 
@@ -470,10 +469,8 @@ static int lsm6dso32_read_reg(struct lsm6dso32_dev_s const *dev, uint8_t reg,
  ****************************************************************************/
 
 static int lsm6dso32_write_regs(struct lsm6dso32_dev_s const *dev,
-                                uint8_t reg, uint8_t *data, ssize_t nbytes)
-{
+                                uint8_t reg, uint8_t *data, ssize_t nbytes) {
     struct i2c_msg_s msg[2] = {
-
         /* Write start register address. */
 
         {
@@ -509,22 +506,23 @@ static int lsm6dso32_write_regs(struct lsm6dso32_dev_s const *dev,
  ****************************************************************************/
 
 static int lsm6dso32_write_reg(struct lsm6dso32_dev_s const *dev, uint8_t reg,
-                               uint8_t data)
-{
+                               uint8_t data) {
     return lsm6dso32_write_regs(dev, reg, &data, 1);
 }
 
-static int lsm6dso32_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
-{
+static int lsm6dso32_ioctl(FAR struct file *filep, int cmd,
+                           unsigned long arg) {
     FAR struct inode *inode = filep->f_inode;
     FAR struct lsm6dso32_dev_s *priv = inode->i_private;
     int err = OK;
 
-    switch (cmd) {
+    switch (cmd)
+    {
     case SNIOC_WHO_AM_I:
         err = lsm6dso32_read_reg(priv, WHO_AM_I, (uint8_t *)arg);
         break;
     }
+
     return err;
 }
 
@@ -549,15 +547,15 @@ static int lsm6dso32_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
  ****************************************************************************/
 
 int lsm6dso32_register(FAR const char *path, struct i2c_master_s *i2c,
-                       uint8_t addr)
-{
+                       uint8_t addr) {
     FAR struct lsm6dso32_dev_s *priv;
     int err;
 
     /* Initialize the device structure. */
 
     priv = kmm_malloc(sizeof(struct lsm6dso32_dev_s));
-    if (priv == NULL) {
+    if (priv == NULL)
+    {
         snerr("ERROR: Failed to allocate LSM6DSO32 device instance.\n");
         return -ENOMEM;
     }
@@ -569,7 +567,8 @@ int lsm6dso32_register(FAR const char *path, struct i2c_master_s *i2c,
     /* Register the device node. */
 
     err = register_driver(path, &g_lsm6dso32_fops, 0666, priv);
-    if (err) {
+    if (err)
+    {
         snerr("ERROR: Failed to register LSM6DSO32 interface: %d\n", err);
         nxmutex_destroy(&priv->devlock);
         kmm_free(priv);
@@ -579,4 +578,4 @@ int lsm6dso32_register(FAR const char *path, struct i2c_master_s *i2c,
     return 0;
 }
 
-#endif /* defined(CONFIG_I2C) && defined(CONFIG_SENSORS_LSM6DSO32) */
+#endif // defined(CONFIG_I2C) && defined(CONFIG_SENSORS_LSM6DSO32)
