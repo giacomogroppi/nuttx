@@ -359,17 +359,17 @@ enum lsm6dso32_senreg_e
  ****************************************************************************/
 
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-static int lsm6dso32_open (FAR struct file *filep);
-static int lsm6dso32_close (FAR struct file *filep);
+static int lsm6dso32_open(FAR struct file *filep);
+static int lsm6dso32_close(FAR struct file *filep);
 #endif
-static ssize_t lsm6dso32_read (FAR struct file *filep, FAR char *buffer,
+static ssize_t lsm6dso32_read(FAR struct file *filep, FAR char *buffer,
+                              size_t buflen);
+static ssize_t lsm6dso32_write(FAR struct file *filep, FAR const char *buffer,
                                size_t buflen);
-static ssize_t lsm6dso32_write (FAR struct file *filep,
-                                FAR const char *buffer, size_t buflen);
-static int lsm6dso32_ioctl (FAR struct file *filep, int cmd,
-                            unsigned long arg);
+static int lsm6dso32_ioctl(FAR struct file *filep, int cmd,
+                           unsigned long arg);
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-static int lsm6dso32_unlink (FAR struct inode *inode);
+static int lsm6dso32_unlink(FAR struct inode *inode);
 #endif
 
 /****************************************************************************
@@ -398,6 +398,123 @@ static const struct file_operations g_lsm6dso32fops = {
 
 /****************************************************************************
  * Private Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: lsm6dso32_read_regs
+ *
+ * Description:
+ *    Read `nbytes` from the LSM6DSO32 into `data` buffer starting at register
+ *    address `reg`.
+ *
+ * Returns: 0 if okay, negated errno otherwise.
+ *
+ ****************************************************************************/
+
+static int lsm6dso32_read_regs(struct lsm6dso32_dev_s const *dev, uint8_t reg,
+                               uint8_t *data, ssize_t nbytes)
+{
+    DEBUGASSERT(nbytes > 0);
+
+    struct i2c_msg_s msg[2] = {
+
+        /* Write register address. */
+
+        {
+            .frequency = I2C_SPEED_FAST,
+            .addr = dev->addr,
+            .flags = I2C_M_NOSTOP,
+            .buffer = &reg,
+            .length = sizeof(reg),
+        },
+
+        /* Read return from registers. */
+
+        {
+            .frequency = I2C_SPEED_FAST,
+            .addr = dev->addr,
+            .flags = 0,
+            .buffer = data,
+            .length = nbytes,
+        },
+    };
+
+    return I2C_TRANSFER(dev->i2c, msg, 2);
+}
+
+/****************************************************************************
+ * Name: lsm6dso32_read_reg
+ *
+ * Description:
+ *    Read a single register from the LSM6DSO32 into `data` buffer.
+ *
+ * Returns: 0 if okay, negated errno otherwise.
+ *
+ ****************************************************************************/
+
+static int lsm6dso32_read_reg(struct lsm6dso32_dev_s const *dev, uint8_t reg,
+                              uint8_t *data)
+{
+    return lsm6dso32_read_regs(dev, reg, data, 1);
+}
+
+/****************************************************************************
+ * Name: lsm6dso32_write_regs
+ *
+ * Description:
+ *    Write `nbytes` of `data` to the registers starting at address `reg`.
+ *
+ * Returns: 0 if okay, negated errno otherwise.
+ *
+ ****************************************************************************/
+
+static int lsm6dso32_write_regs(struct lsm6dso32_dev_s const *dev,
+                                uint8_t reg, uint8_t *data, ssize_t nbytes)
+{
+    struct i2c_msg_s msg[2] = {
+
+        /* Write start register address. */
+
+        {
+            .addr = dev->addr,
+            .frequency = I2C_SPEED_FAST,
+            .flags = I2C_M_NOSTOP,
+            .buffer = &reg,
+            .length = sizeof(reg),
+        },
+
+        /* Write data. */
+
+        {
+            .addr = dev->addr,
+            .frequency = I2C_SPEED_FAST,
+            .flags = 0,
+            .buffer = data,
+            .length = nbytes,
+        },
+    };
+
+    return 0;
+}
+
+/****************************************************************************
+ * Name: lsm6dso32_write_reg
+ *
+ * Description:
+ *    Write a byte of `data` to the specified register, `reg`.
+ *
+ * Returns: 0 if okay, negated errno otherwise.
+ *
+ ****************************************************************************/
+
+static int lsm6dso32_write_reg(struct lsm6dso32_dev_s const *dev, uint8_t reg,
+                               uint8_t data)
+{
+    return lsm6dso32_write_regs(dev, reg, &data, 1);
+}
+
+/****************************************************************************
+ * Public Functions
  ****************************************************************************/
 
 #endif /* defined(CONFIG_I2C) && defined(CONFIG_SENSORS_LSM6DSO32) */
