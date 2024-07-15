@@ -607,7 +607,35 @@ static int lsm6dso32_close(FAR struct file *filep) {
 
 static ssize_t lsm6dso32_read(FAR struct file *filep, FAR char *buffer,
                               size_t buflen) {
-    return 0;
+    FAR struct inode *inode = filep->f_inode;
+    FAR struct lsm6dso32_dev_s *priv = inode->i_private;
+    ssize_t length = 0;
+    int err;
+
+    /* Get exclusive access */
+
+    err = nxmutex_lock(&priv->devlock);
+    if (err) return 0;
+
+#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
+    if (priv->unlinked)
+    {
+        /* Do not allow operations on unlinked sensors. This allows
+         * sensor use on hot swappable I2C bus.
+         */
+
+        nxmutex_unlock(&priv->devlock);
+        return -ENODEV;
+    }
+#endif
+
+    uint8_t data;
+    err = lsm6dso32_read_reg(priv, WHO_AM_I, &data);
+    if (err) return 0;
+
+    length = snprintf(buffer, buflen, "ID: %02x\n", data);
+    if (length > buflen) length = buflen;
+    return length;
 }
 
 /****************************************************************************
