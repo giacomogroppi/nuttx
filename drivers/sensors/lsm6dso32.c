@@ -630,18 +630,16 @@ static ssize_t lsm6dso32_read(FAR struct file *filep, FAR char *buffer,
 #endif
 
     uint8_t data;
-    puts("HERE!");
     err = lsm6dso32_read_reg(priv, WHO_AM_I, &data);
-    printf("HERE with err: %d\n", err);
     if (err)
     {
         nxmutex_unlock(&priv->devlock);
         return 0;
     }
-    puts("HERE 2!");
 
+    nxmutex_unlock(&priv->devlock);
     length = snprintf(buffer, buflen, "ID: %02x\n", data);
-    if (length > buflen) length = buflen;
+    if (length > buflen) return 0;
     return length;
 }
 
