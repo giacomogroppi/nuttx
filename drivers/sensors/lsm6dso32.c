@@ -34,6 +34,7 @@
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
+#include <nuttx/sensors/ioctl.h>
 #include <nuttx/sensors/lsm6dso32.h>
 
 #if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_LSM6DSO32)
@@ -511,6 +512,20 @@ static int lsm6dso32_write_reg(struct lsm6dso32_dev_s const *dev, uint8_t reg,
                                uint8_t data)
 {
     return lsm6dso32_write_regs(dev, reg, &data, 1);
+}
+
+static int lsm6dso32_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
+{
+    FAR struct inode *inode = filep->f_inode;
+    FAR struct lsm6dso32_dev_s *priv = inode->i_private;
+    int err = OK;
+
+    switch(cmd) {
+    case SNIOC_WHO_AM_I:
+        err = lsm6dso32_read_reg(priv, WHO_AM_I, (uint8_t *)arg);
+        break;
+    }
+    return err;
 }
 
 /****************************************************************************
