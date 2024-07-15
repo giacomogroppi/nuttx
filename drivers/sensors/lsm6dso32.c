@@ -442,7 +442,7 @@ static int lsm6dso32_read_regs(struct lsm6dso32_dev_s const *dev, uint8_t reg,
         {
             .frequency = CONFIG_LSM6DSO32_FREQ,
             .addr = dev->addr,
-            .flags = 0,
+            .flags = I2C_M_READ,
             .buffer = data,
             .length = nbytes,
         },
@@ -625,13 +625,20 @@ static ssize_t lsm6dso32_read(FAR struct file *filep, FAR char *buffer,
          */
 
         nxmutex_unlock(&priv->devlock);
-        return -ENODEV;
+        return 0;
     }
 #endif
 
     uint8_t data;
+    puts("HERE!");
     err = lsm6dso32_read_reg(priv, WHO_AM_I, &data);
-    if (err) return 0;
+    printf("HERE with err: %d\n", err);
+    if (err)
+    {
+        nxmutex_unlock(&priv->devlock);
+        return 0;
+    }
+    puts("HERE 2!");
 
     length = snprintf(buffer, buflen, "ID: %02x\n", data);
     if (length > buflen) length = buflen;
@@ -762,6 +769,8 @@ int lsm6dso32_register(FAR const char *path, struct i2c_master_s *i2c,
     memset(priv, 0, sizeof(*priv));
     err = nxmutex_init(&priv->devlock);
     if (err) return err;
+    priv->i2c = i2c;
+    priv->addr = addr;
 
     /* Register the device node. */
 
