@@ -518,6 +518,122 @@ static int lsm6dso32_write_reg(struct lsm6dso32_dev_s const *dev, uint8_t reg,
     return lsm6dso32_write_regs(dev, reg, &data, 1);
 }
 
+#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
+
+/****************************************************************************
+ * Name: lsm6dso32_open
+ *
+ * Description:
+ *    open handler for LSM6DSO32
+ *
+ * Returns: 0 if okay, negated errno otherwise.
+ *
+ ****************************************************************************/
+
+static int lsm6dso32_open(FAR struct file *filep) {
+    FAR struct inode *inode = filep->f_inode;
+    FAR struct lsm6dso32_dev_s *priv = inode->i_private;
+    int err;
+
+    /* Get exclusive access */
+
+    err = nxmutex_lock(&priv->devlock);
+    if (err) return err;
+
+    /* Increment the count of open references on the driver */
+
+    priv->crefs++;
+    DEBUGASSERT(priv->crefs > 0);
+
+    nxmutex_unlock(&priv->devlock);
+    return 0;
+}
+
+#endif // CONFIG_DISABLE_PSEUDOFS_OPERATIONS
+
+#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
+
+/****************************************************************************
+ * Name: lsm6dso32_close
+ *
+ * Description:
+ *    close handler for LSM6DSO32
+ *
+ * Returns: 0 if okay, negated errno otherwise.
+ *
+ ****************************************************************************/
+
+static int lsm6dso32_close(FAR struct file *filep) {
+    FAR struct inode *inode = filep->f_inode;
+    FAR struct lsm6dso32_dev_s *priv = inode->i_private;
+    int err;
+
+    /* Get exclusive access */
+
+    err = nxmutex_lock(&priv->devlock);
+    if (err) return err;
+
+    /* Decrement the count of open references on the driver */
+
+    DEBUGASSERT(priv->crefs > 0);
+    priv->crefs--;
+
+    /* If the count has decremented to zero and the driver has been unlinked,
+     * then free memory now.
+     */
+
+    if (priv->crefs <= 0 && priv->unlinked)
+    {
+        nxmutex_destroy(&priv->devlock);
+        kmm_free(priv);
+        return 0;
+    }
+
+    nxmutex_unlock(&priv->devlock);
+    return 0;
+}
+
+#endif // CONFIG_DISABLE_PSEUDOFS_OPERATIONS
+
+/****************************************************************************
+ * Name: lsm6dso32_read
+ *
+ * Description:
+ *    read handler for LSM6DSO32
+ *
+ * Returns: Number of bytes read.
+ *
+ ****************************************************************************/
+
+static ssize_t lsm6dso32_read(FAR struct file *filep, FAR char *buffer,
+                              size_t buflen) {
+    return 0;
+}
+
+/****************************************************************************
+ * Name: lsm6dso32_write
+ *
+ * Description:
+ *    write handler for LSM6DSO32
+ *
+ * Returns: Negated errno number (not implemented)
+ *
+ ****************************************************************************/
+static ssize_t lsm6dso32_write(FAR struct file *filep, FAR const char *buffer,
+                               size_t buflen) {
+    return -ENOSYS;
+}
+
+/****************************************************************************
+ * Name: lsm6dso32_ioctl
+ *
+ * Description:
+ *    ioctl handler for LSM6DSO32
+ *
+ * Returns: 0 if okay, negated errno otherwise.
+ *
+ ****************************************************************************/
+
 static int lsm6dso32_ioctl(FAR struct file *filep, int cmd,
                            unsigned long arg) {
     FAR struct inode *inode = filep->f_inode;
@@ -533,6 +649,50 @@ static int lsm6dso32_ioctl(FAR struct file *filep, int cmd,
 
     return err;
 }
+
+#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
+
+/****************************************************************************
+ * Name: lsm6dso32_unlink
+ *
+ * Description:
+ *    unlink handler for LSM6DSO32
+ *
+ * Returns: 0 if okay, negated errno otherwise.
+ *
+ ****************************************************************************/
+
+static int lsm6dso32_unlink(FAR struct inode *inode) {
+    FAR struct lsm6dso32_dev_s *priv;
+    int err;
+
+    DEBUGASSERT(inode->i_private != NULL);
+    priv = inode->i_private;
+
+    /* Get exclusive access */
+
+    err = nxmutex_lock(&priv->devlock);
+    if (err) return err;
+
+    /* Are there open references to the driver data structure? */
+
+    if (priv->crefs <= 0)
+    {
+        nxmutex_destroy(&priv->devlock);
+        kmm_free(priv);
+        return 0;
+    }
+
+    /* No... just mark the driver as unlinked and free the resources when
+     * the last client closes their reference to the driver.
+     */
+
+    priv->unlinked = true;
+    nxmutex_unlock(&priv->devlock);
+    return 0;
+}
+
+#endif // CONFIG_DISABLE_PSEUDOFS_OPERATIONS
 
 /****************************************************************************
  * Public Functions
