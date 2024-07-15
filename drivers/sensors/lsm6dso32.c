@@ -637,9 +637,10 @@ static ssize_t lsm6dso32_read(FAR struct file *filep, FAR char *buffer,
         return 0;
     }
 
-    nxmutex_unlock(&priv->devlock);
     length = snprintf(buffer, buflen, "ID: %02x\n", data);
-    if (length > buflen) return 0;
+    if (length > buflen) length = buflen;
+
+    nxmutex_unlock(&priv->devlock);
     return length;
 }
 
