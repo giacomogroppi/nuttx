@@ -7,10 +7,11 @@ The SHT4x is a family of temperature and humidity sensors created by Sensirion
 which operates over I2C. They include a small heating element.
 
 The driver provided allows interfacing with the sensor over I2C. It has been
-tested against the SHT41. This driver uses the :doc:`uorb` interface.
+tested against the SHT41. This driver uses the :doc:`uorb
+</components/drivers/special/sensors_uorb.rst>` interface.
 
 Application Programming Interface
-=================================
+---------------------------------
 
 The header file for the SHT4X driver interface can be included using:
 
@@ -43,7 +44,7 @@ either topic (humidity or temperature), since they control the device as a
 whole.
 
 ``SNIOC_RESET``
----------------
+^^^^^^^^^^^^^^^
 
 This will perform the SHT4X's soft reset command.
 
@@ -57,7 +58,7 @@ This will perform the SHT4X's soft reset command.
   }
 
 ``SNIOC_WHO_AM_I``
-------------------
+^^^^^^^^^^^^^^^^^^
 
 This command reads the serial number of the SHT4X sensor. The serial number is
 returned in the argument to the command, which must be a `uint32_t` pointer.
@@ -68,7 +69,7 @@ returned in the argument to the command, which must be a `uint32_t` pointer.
   err = orb_ioctl(sensor, SNIOC_WHO_AM_I, &serialno);
 
 ``SNIOC_HEAT``
---------------
+^^^^^^^^^^^^^^
 
 This command will instruct the SHT4X to turn on its heater unit for the
 specified time.
@@ -85,7 +86,7 @@ sensor. If a command is issued before this one second cool-down period is over,
   err = orb_ioctl(sensor, SNIOC_HEAT, SHT4X_HEATER_200MW_1);
 
 ``SNIOC_CONFIGURE``
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 This command allows the caller to configure the precision of the SHT4X sensor
 used by subsequent measurement commands. By default, the sensor starts at high
