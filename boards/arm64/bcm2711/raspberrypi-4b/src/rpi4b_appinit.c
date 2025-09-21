@@ -24,14 +24,22 @@
  * Included Files
  ****************************************************************************/
 
-#include "rpi4b.h"
-#include <debug.h>
-#include <nuttx/board.h>
 #include <nuttx/config.h>
-#include <nuttx/fs/fs.h>
+
+#include <debug.h>
 #include <sys/types.h>
 
-#ifdef CONFIG_BOARDCTL
+#include <nuttx/board.h>
+#include <nuttx/fs/fs.h>
+
+#include "rpi4b.h"
+#include <arch/board/board.h>
+
+#ifdef CONFIG_RPI4B_MOUNT_BOOT
+#include <nuttx/sdio.h>
+#include <nuttx/mmcsd.h>
+#include "bcm2711_sdio.h"
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -73,7 +81,7 @@ int board_app_initialize(uintptr_t arg)
   ret = nx_mount(NULL, "/proc", "procfs", 0, NULL);
   if (ret < 0)
     {
-      _err("ERROR: Failed to mount procfs at /proc: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: Failed to mount procfs at /proc: %d\n", ret);
     }
 #endif
 
@@ -83,7 +91,22 @@ int board_app_initialize(uintptr_t arg)
   ret = rpi4b_bringup();
 #endif
 
+#ifdef CONFIG_RPI4B_MOUNT_BOOT
+  struct sdio_dev_s *emmc2 = bcm2711_sdio_initialize(2);
+  if (emmc2 == NULL)
+    {
+      syslog(LOG_ERR, "Couldn't initialize EMMC2\n");
+    }
+  else
+    {
+      ret = mmcsd_slotinitialize(MICROSD_SLOTNO, emmc2);
+      if (ret)
+        {
+          syslog(LOG_ERR, "Failed to bind EMMC2 to the MMC/SD driver: %d\n",
+                 ret);
+        }
+    }
+#endif /* CONFIG_RPI4B_MOUNT_BOOT */
+
   return ret;
 }
-
-#endif /* CONFIG_BOARDCTL */

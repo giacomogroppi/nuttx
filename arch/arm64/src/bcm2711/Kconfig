@@ -281,6 +281,36 @@ config BCM2711_SPI6
 
 endif # BCM2711_SPI
 
+#####################################################################
+# SDMMC Configuration
+#####################################################################
+
+config BCM2711_EMMC
+	bool "EMMC support"
+	select MMCSD
+	select MMCSD_SDIO
+	default n
+	---help---
+		Enables support for EMMC interfaces.
+
+if BCM2711_EMMC
+
+config BCM2711_EMMC1
+	bool "EMMC1 interface support"
+	depends on BCM2711_EMMC
+	default n
+	---help---
+		Enables support for the EMMC1 interface.
+
+config BCM2711_EMMC2
+	bool "EMMC2 interface support"
+	depends on BCM2711_EMMC
+	default n
+	---help---
+		Enables support for the EMMC2 interface.
+
+endif # BCM2711_EMMC
+
 endmenu # Broadcom BCM2711 Peripheral Selection
 
 endif # ARCH_CHIP_BCM2711
