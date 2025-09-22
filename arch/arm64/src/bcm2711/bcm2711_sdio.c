@@ -67,7 +67,18 @@ struct bcm2711_sdio_dev_s
   int slotno;    /* The slot number */
   int err;       /* The error code reported from the interrupt handler */
   sem_t wait;    /* Wait semaphore */
-  bool inited;   /* Whether or not this device has been initialized */
+
+  /* Callback support */
+
+#if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
+  sdio_eventset_t cbevents; /* Callback events */
+  void *cbarg;              /* Callback argument */
+  worker_t cb;              /* Callback that was registered */
+  struct work_s cbwork;     /* Callback work queue */
+#endif
+
+  sdio_statset_t status; /* Device status */
+  bool inited;           /* Whether the device has been initialized */
 };
 
 /****************************************************************************
@@ -177,7 +188,14 @@ static struct bcm2711_sdio_dev_s g_emmc2 =
   .wait = SEM_INITIALIZER(0),
   .slotno = 2,
   .err = 0,
+  .status = 0,
   .inited = false,
+
+#if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
+  .cb = NULL,
+  .cbarg = NULL,
+  .cbevents = 0,
+#endif
 };
 #endif
 
@@ -282,6 +300,14 @@ static sdio_statset_t bcm2711_status(FAR struct sdio_dev_s *dev)
   sdio_statset_t stat = 0;
 
   mcinfo("Getting %d status", priv->slotno);
+
+#ifdef CONFIG_MMCSD_HAVE_CARDDETECT
+  /* TODO: for now, unsure how to detect card so always lie that there is a
+   * card in the slot and have the MMCSD upper-half perform the probe.
+   */
+#endif
+
+  stat |= SDIO_STATUS_PRESENT;
 
   // TODO detect if card is wrprotected or if a card is present
   return stat;
@@ -881,6 +907,68 @@ static sdio_eventset_t bcm2711_eventwait(FAR struct sdio_dev_s *dev)
 }
 
 /****************************************************************************
+ * Name: bcm2711_callback
+ *
+ * Description:
+ *  Perform the registered callback when events apply.
+ *
+ * Input Parameters:
+ *   priv      - The device to perform the callback for
+ *
+ ****************************************************************************/
+
+static void bcm2711_callback(struct bcm2711_sdio_dev_s *priv)
+{
+  /* All done here if no callback is registered, or callback events are
+   * disabled
+   */
+
+  if (priv->cb == NULL || priv->cbevents == 0)
+    {
+      return;
+    }
+
+  if (priv->status & SDIO_STATUS_PRESENT)
+    {
+      /* If card is present and we don't care about insertion events, do
+       * nothing.
+       */
+
+      if (!(priv->cbevents & SDIOMEDIA_INSERTED))
+        {
+          return;
+        }
+    }
+  else
+    {
+      /* If card is not present and we don't care about ejection events, do
+       * nothing.
+       */
+
+      if (!(priv->cbevents & SDIOMEDIA_EJECTED))
+        {
+          return;
+        }
+    }
+
+  /* Some event that we care about happened, so call the callback and then
+   * immediately disable it. Don't directly call the callback in an interrupt
+   * context.
+   */
+
+  if (up_interrupt_context())
+    {
+      work_queue(HPWORK, &priv->cbwork, priv->cb, priv->cbarg, 0);
+    }
+  else
+    {
+      priv->cb(priv->cbarg);
+    }
+
+  priv->cbevents = 0; /* Disabled for future */
+}
+
+/****************************************************************************
  * Name: bcm2711_callbackenable
  *
  * Description:
@@ -906,8 +994,11 @@ static void bcm2711_callbackenable(FAR struct sdio_dev_s *dev,
                                    sdio_eventset_t eventset)
 {
   struct bcm2711_sdio_dev_s *priv = (struct bcm2711_sdio_dev_s *)dev;
-  mcinfo("Slot %d", priv->slotno);
-  // TODO
+  mcinfo("Enabling callback on slot %d for events %02x\n", priv->slotno,
+         eventset);
+
+  priv->cbevents = eventset;
+  bcm2711_callback(priv); /* Immediately check events */
 }
 
 #if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
@@ -940,8 +1031,14 @@ static int bcm2711_registercallback(FAR struct sdio_dev_s *dev,
                                     worker_t callback, FAR void *arg)
 {
   struct bcm2711_sdio_dev_s *priv = (struct bcm2711_sdio_dev_s *)dev;
-  mcinfo("Slot %d", priv->slotno);
-  // TODO
+  mcinfo("Callback %p registered for %d", callback, priv->slotno);
+
+  /* Register this callback and disable it */
+
+  priv->cb = callback;
+  priv->cbarg = arg;
+  priv->cbevents = 0;
+
   return 0;
 }
 #endif

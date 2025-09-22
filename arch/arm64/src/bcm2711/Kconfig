@@ -309,6 +309,11 @@ config BCM2711_EMMC2
 	---help---
 		Enables support for the EMMC2 interface.
 
+config MMCSD_HAVE_CARDDETECT
+	bool "EMMC card detect"
+	default n
+	depends on BCM2711_EMMC
+
 endif # BCM2711_EMMC
 
 endmenu # Broadcom BCM2711 Peripheral Selection
