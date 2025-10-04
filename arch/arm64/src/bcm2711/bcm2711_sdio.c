@@ -50,6 +50,7 @@
 #include "arm64_gic.h"
 #include "chip.h"
 #include "bcm2711_sdio.h"
+#include "bcm2711_mailbox.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -66,6 +67,7 @@ struct bcm2711_sdio_dev_s
   uint32_t base; /* Peripheral base address */
   int slotno;    /* The slot number */
   int err;       /* The error code reported from the interrupt handler */
+  uint8_t clkid; /* EMMC clock ID for mailbox to enable */
   sem_t wait;    /* Wait semaphore */
 
   /* Callback support */
@@ -187,6 +189,7 @@ static struct bcm2711_sdio_dev_s g_emmc2 =
   .base = BCM_EMMC2_BASEADDR,
   .wait = SEM_INITIALIZER(0),
   .slotno = 2,
+  .clkid = MBOX_CLK_EMMC2,
   .err = 0,
   .status = 0,
   .inited = false,
@@ -1064,25 +1067,35 @@ static int bcm2711_registercallback(FAR struct sdio_dev_s *dev,
 
 struct sdio_dev_s *bcm2711_sdio_initialize(int slotno)
 {
+  int err;
   struct bcm2711_sdio_dev_s *priv = NULL;
 
   switch (slotno)
     {
     case 2:
       priv = &g_emmc2;
-      mcinfo("EMMC2 initialized.");
       break;
     case 1:
-      mcwarn("EMMC1 currently unsupported/untested.");
+      mcerr("EMMC1 currently unsupported/untested.");
+      return NULL;
     default:
       mcerr("No SDIO slot number '%d'", slotno);
       return NULL;
     }
 
-  /* Reset device */
-
   if (!priv->inited)
     {
+      /* Enable correct clocks */
+
+      err = bcm2711_mbox_setclken(priv->clkid, true);
+      if (err)
+        {
+          mcerr("Couldn't enable EMMC%d clock: %d", priv->slotno, err);
+          return NULL;
+        }
+
+      /* Reset device */
+
       bcm2711_reset(&priv->dev);
       priv->inited = true;
     }
