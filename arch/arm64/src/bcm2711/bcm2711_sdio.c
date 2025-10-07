@@ -28,33 +28,37 @@
 
 #include <nuttx/config.h>
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <string.h>
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
 
 #include <nuttx/arch.h>
-#include <nuttx/wdog.h>
 #include <nuttx/clock.h>
-#include <nuttx/sdio.h>
-#include <nuttx/wqueue.h>
-#include <nuttx/semaphore.h>
 #include <nuttx/mmcsd.h>
+#include <nuttx/sdio.h>
+#include <nuttx/semaphore.h>
+#include <nuttx/wdog.h>
+#include <nuttx/wqueue.h>
 
-#include <nuttx/irq.h>
 #include <arch/board/board.h>
+#include <nuttx/irq.h>
 
 #include "arm64_arch.h"
 #include "arm64_gic.h"
-#include "chip.h"
-#include "bcm2711_sdio.h"
 #include "bcm2711_mailbox.h"
+#include "bcm2711_sdio.h"
+#include "chip.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* The clock rate to use when asking the SD for its ID in Hz (<400kHz) */
+
+#define EMMC_ID_RATE (400000)
 
 /****************************************************************************
  * Private Types
@@ -64,11 +68,12 @@ struct bcm2711_sdio_dev_s
 {
   struct sdio_dev_s dev; /* SDIO device for upper-half */
 
-  uint32_t base; /* Peripheral base address */
-  int slotno;    /* The slot number */
-  int err;       /* The error code reported from the interrupt handler */
-  uint8_t clkid; /* EMMC clock ID for mailbox to enable */
-  sem_t wait;    /* Wait semaphore */
+  uint32_t base;    /* Peripheral base address */
+  uint32_t baseclk; /* Base clock rate */
+  int slotno;       /* The slot number */
+  int err;          /* The error code reported from the interrupt handler */
+  uint8_t clkid;    /* EMMC clock ID for mailbox to enable */
+  sem_t wait;       /* Wait semaphore */
 
   /* Callback support */
 
@@ -79,8 +84,9 @@ struct bcm2711_sdio_dev_s
   struct work_s cbwork;     /* Callback work queue */
 #endif
 
-  sdio_statset_t status; /* Device status */
-  bool inited;           /* Whether the device has been initialized */
+  enum sdio_clock_e cur_rate; /* Current clock rate */
+  sdio_statset_t status;      /* Device status */
+  bool inited;                /* Whether the device has been initialized */
 };
 
 /****************************************************************************
@@ -192,6 +198,7 @@ static struct bcm2711_sdio_dev_s g_emmc2 =
   .clkid = MBOX_CLK_EMMC2,
   .err = 0,
   .status = 0,
+  .cur_rate = CLOCK_SDIO_DISABLED,
   .inited = false,
 
 #if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
@@ -205,6 +212,103 @@ static struct bcm2711_sdio_dev_s g_emmc2 =
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: get_clock_divider
+ *
+ * Description:
+ *   Calculates clock divider for target clock rate with some known base
+ *   clock.
+ *   NOTE: This was taken from rockytriton/LLD, a bare-metal RPi EMMC driver.
+ *
+ * Input Parameters:
+ *   base   - The base block rate to be divided
+ *   target - The target clock rate
+ *
+ * Returned Value:
+ *   The calculated clock divider that will get as close as possible to the
+ *   target rate.
+ *
+ ****************************************************************************/
+
+static uint32_t get_clock_divider(uint32_t base_clock, uint32_t target_rate)
+{
+  uint32_t target_div = 1;
+  uint32_t freqSel;
+  uint32_t upper;
+  uint32_t ret;
+
+  if (target_rate <= base_clock)
+    {
+      target_div = base_clock / target_rate;
+
+      if (base_clock % target_rate)
+        {
+          target_div = 0;
+        }
+    }
+
+  int div = -1;
+  for (int fb = 31; fb >= 0; fb--)
+    {
+      uint32_t bt = (1 << fb);
+
+      if (target_div & bt)
+        {
+          div = fb;
+          target_div &= ~(bt);
+
+          if (target_div)
+            {
+              div++;
+            }
+
+          break;
+        }
+    }
+
+  /* Out of bounds, clip division to as much as possible */
+
+  if (div == -1 || div >= 32)
+    {
+      div = 31;
+    }
+
+  if (div != 0)
+    {
+      div = (1 << (div - 1));
+    }
+
+  if (div >= 0x400)
+    {
+      div = 0x3FF;
+    }
+
+  freqSel = div & 0xff;
+  upper = (div >> 8) & 0x3;
+  ret = (freqSel << 8) | (upper << 6) | (0 << 5);
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: bcm2711_clk_waitstable
+ *
+ * Description:
+ *   Busy-waits until the EMMC controller clock has become stable.
+ *   TODO: can we do better than a busy wait?
+ *
+ * Input Parameters:
+ *   priv - The device whose EMMC controller clock we are waiting for
+ *
+ ****************************************************************************/
+
+static void bcm2711_clk_waitstable(struct bcm2711_sdio_dev_s *priv)
+{
+  while (!(getreg32(BCM_SDIO_CONTROL1(priv->base)) &
+           BCM_SDIO_CONTROL1_CLK_STABLE))
+    ;
+}
 
 /****************************************************************************
  * Name: bcm2711_lock
@@ -358,33 +462,77 @@ static void bcm2711_widebus(FAR struct sdio_dev_s *dev, bool enable)
 static void bcm2711_clock(FAR struct sdio_dev_s *dev, enum sdio_clock_e rate)
 {
   struct bcm2711_sdio_dev_s *priv = (struct bcm2711_sdio_dev_s *)dev;
+  uint32_t divider;
+  bool enable;
+
+  /* If the desired rate already matches the current rate, we're done. */
+
+  if (rate == priv->cur_rate)
+    {
+      return;
+    }
 
   switch (rate)
     {
     case CLOCK_SDIO_DISABLED:
-      modreg32(0, BCM_SDIO_CONTROL1_CLK_EN, BCM_SDIO_CONTROL1(priv->base));
-      mcinfo("%d clock disabled", priv->slotno);
+      enable = false;
+      divider = 0;
+      mcinfo("EMMC%d clock disabled.", priv->slotno);
       break;
     case CLOCK_IDMODE:
-      modreg32(BCM_SDIO_CONTROL1_CLK_EN, BCM_SDIO_CONTROL1_CLK_EN, BCM_SDIO_CONTROL1(priv->base));
-      mcinfo("%d clock ID mode", priv->slotno);
+      mcinfo("EMMC%d clock in ID mode.", priv->slotno);
+
+      /* Calculate the appropriate clock divider */
+
+      divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
       // TODO: what else
       break;
     case CLOCK_MMC_TRANSFER:
-      modreg32(BCM_SDIO_CONTROL1_CLK_EN, BCM_SDIO_CONTROL1_CLK_EN, BCM_SDIO_CONTROL1(priv->base));
-      // TODO
+      enable = true;
+      // TODO: decide on transfer rates, using low value for now
+      divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
       break;
     case CLOCK_SD_TRANSFER_1BIT:
-      modreg32(BCM_SDIO_CONTROL1_CLK_EN, BCM_SDIO_CONTROL1_CLK_EN, BCM_SDIO_CONTROL1(priv->base));
-      // TODO
+      enable = true;
+      // TODO: decide on transfer rates, using low value for now
+      divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
       break;
     case CLOCK_SD_TRANSFER_4BIT:
-      modreg32(BCM_SDIO_CONTROL1_CLK_EN, BCM_SDIO_CONTROL1_CLK_EN, BCM_SDIO_CONTROL1(priv->base));
-      // TODO
+      enable = true;
+      // TODO: decide on transfer rates, using low value for now
+      divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
       break;
     default:
       DEBUGASSERT(false && "Should never reach here.");
-      break;
+      return;
+    }
+
+  /* First, disable the clock before making changes. */
+
+  modreg32(0, BCM_SDIO_CONTROL1_CLK_EN | BCM_SDIO_CONTROL1_CLK_INTLEN,
+           BCM_SDIO_CONTROL1(priv->base));
+
+  /* Set the appropriate clock divider */
+
+  modreg32(divider,
+           BCM_SDIO_CONTROL1_CLK_FREQ8 | BCM_SDIO_CONTROL1_CLK_FREQ_MS2,
+           BCM_SDIO_CONTROL1(priv->base));
+
+  // TODO: Set data timeout unit exponent (DATA_TOUNIT)
+  // This was taken from LLD code, not sure what it does
+
+  modreg32(11 << 16, BCM_SDIO_CONTROL1_DATA_TOUNIT,
+           BCM_SDIO_CONTROL1(priv->base));
+
+  /* Enable the clock and wait for it to stabilize.
+   * TODO: LLD does this differently, check back if this doesn't work
+   */
+
+  if (enable)
+    {
+      modreg32(~0, BCM_SDIO_CONTROL1_CLK_EN | BCM_SDIO_CONTROL1_CLK_INTLEN,
+               BCM_SDIO_CONTROL1(priv->base));
+      bcm2711_clk_waitstable(priv);
     }
 }
 
@@ -489,8 +637,10 @@ static int bcm2711_attach(FAR struct sdio_dev_s *dev)
   // TODO: remove
   // For fun, force an error interrupt
   putreg32(BCM_SDIO_IRPT_EN_CARD, BCM_SDIO_IRPT_EN(g_emmc2.base));
-  mcinfo("Enabled interrupts: %08x.", getreg32(BCM_SDIO_IRPT_EN(g_emmc2.base)));
-  mcinfo("Masked interrupts: %08x.", getreg32(BCM_SDIO_IRPT_MASK(g_emmc2.base)));
+  mcinfo("Enabled interrupts: %08x.",
+         getreg32(BCM_SDIO_IRPT_EN(g_emmc2.base)));
+  mcinfo("Masked interrupts: %08x.",
+         getreg32(BCM_SDIO_IRPT_MASK(g_emmc2.base)));
 
   mcinfo("Forcing card interrupt.");
   putreg32(BCM_SDIO_FORCE_IRPT_CARD, BCM_SDIO_FORCE_IRPT(g_emmc2.base));
@@ -833,7 +983,8 @@ static int bcm2711_recvnotimpl(FAR struct sdio_dev_s *dev, uint32_t cmd,
  ****************************************************************************/
 
 static void bcm2711_waitenable(FAR struct sdio_dev_s *dev,
-                               sdio_eventset_t eventset, uint32_t timeout) {
+                               sdio_eventset_t eventset, uint32_t timeout)
+{
   struct bcm2711_sdio_dev_s *priv = (struct bcm2711_sdio_dev_s *)dev;
   uint32_t ints_en = 0;
   mcinfo("Slot %d waitenable for events %04x", priv->slotno, eventset);
@@ -1091,6 +1242,19 @@ struct sdio_dev_s *bcm2711_sdio_initialize(int slotno)
       if (err)
         {
           mcerr("Couldn't enable EMMC%d clock: %d", priv->slotno, err);
+          return NULL;
+        }
+
+      /* Determine the base block rate.
+       * NOTE: This driver assumes that it is in complete control of the EMMC
+       * base clocks, and that they will not change without its knowledge.
+       */
+
+      err = bcm2711_mbox_getclkrate(priv->clkid, &priv->baseclk, false);
+      if (err)
+        {
+          mcerr("Couldn't determine base clock rate for EMMC%d: %d\n",
+                priv->slotno, err);
           return NULL;
         }
 
