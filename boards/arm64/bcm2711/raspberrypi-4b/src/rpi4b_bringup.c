@@ -36,6 +36,11 @@
 #include "bcm2711_i2c.h"
 #endif
 
+#ifdef CONFIG_BCM2711_EMMC
+#include "bcm2711_sdio.h"
+#include <nuttx/mmcsd.h>
+#endif
+
 #include "bcm2711_mailbox.h"
 
 #include "rpi4b.h"
@@ -127,6 +132,26 @@ int rpi4b_bringup(void)
 #endif /* defined(CONFIG_BCM2711_I2C6) */
 
 #endif /* defined(CONFIG_BCM2711_I2C) */
+
+/* Test EMMC bringup. TODO: remove this in favour of another source file. */
+
+#ifdef CONFIG_BCM2711_EMMC2
+  struct sdio_dev_s *emmc2 = bcm2711_sdio_initialize(2);
+  if (emmc2 == NULL)
+    {
+      syslog(LOG_ERR, "Couldn't initialize EMMC2");
+    }
+  else
+    {
+      ret = mmcsd_slotinitialize(0, emmc2);
+      if (ret < 0)
+        {
+          syslog(LOG_ERR,
+                 "Couldn't bind EMMC2 interfaces to MMC/SD driver: %d", ret);
+        }
+    }
+
+#endif
 
   return ret;
 }

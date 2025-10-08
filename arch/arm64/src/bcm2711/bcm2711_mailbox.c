@@ -304,7 +304,7 @@ static int bcm2711_mbox_sendreq(FAR uint32_t *buf, uint8_t n)
   /* Unknown response code, typically due to unknown tag */
 
   ipcerr("Unknown response code: %08x", buf[1]);
-  return -EINVAL;
+  return -EAGAIN;
 }
 
 /****************************************************************************

@@ -465,10 +465,13 @@ static void bcm2711_clock(FAR struct sdio_dev_s *dev, enum sdio_clock_e rate)
   uint32_t divider;
   bool enable;
 
+  mcinfo("Setting clock rate for EMMC%d.", priv->slotno);
+
   /* If the desired rate already matches the current rate, we're done. */
 
   if (rate == priv->cur_rate)
     {
+      mcinfo("New rate matches current rate.");
       return;
     }
 
@@ -479,33 +482,41 @@ static void bcm2711_clock(FAR struct sdio_dev_s *dev, enum sdio_clock_e rate)
       divider = 0;
       mcinfo("EMMC%d clock disabled.", priv->slotno);
       break;
+
     case CLOCK_IDMODE:
       mcinfo("EMMC%d clock in ID mode.", priv->slotno);
+      enable = true;
 
       /* Calculate the appropriate clock divider */
 
       divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
       // TODO: what else
       break;
+
     case CLOCK_MMC_TRANSFER:
       enable = true;
       // TODO: decide on transfer rates, using low value for now
       divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
       break;
+
     case CLOCK_SD_TRANSFER_1BIT:
       enable = true;
       // TODO: decide on transfer rates, using low value for now
       divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
       break;
+
     case CLOCK_SD_TRANSFER_4BIT:
       enable = true;
       // TODO: decide on transfer rates, using low value for now
       divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
       break;
+
     default:
       DEBUGASSERT(false && "Should never reach here.");
       return;
     }
+
+  mcinfo("Base rate: %u, divider: %08x", priv->baseclk, divider);
 
   /* First, disable the clock before making changes. */
 
@@ -534,6 +545,15 @@ static void bcm2711_clock(FAR struct sdio_dev_s *dev, enum sdio_clock_e rate)
                BCM_SDIO_CONTROL1(priv->base));
       bcm2711_clk_waitstable(priv);
     }
+
+  mcinfo("Clock rate updated!");
+
+  /* If we got all the way here, the clock rate was set successfully (as far
+   * as we know), so we can update the current clock rate to save computation
+   * later.
+   */
+
+  priv->cur_rate = rate;
 }
 
 /****************************************************************************
@@ -1236,31 +1256,54 @@ struct sdio_dev_s *bcm2711_sdio_initialize(int slotno)
 
   if (!priv->inited)
     {
-      /* Enable correct clocks */
+      /* Enable correct clock.
+       * TODO: clocks seem to be enabled by default. Currently `setclken`
+       * returns 0x80000008 response code so I'm ignoring this out for now.
+       */
 
       err = bcm2711_mbox_setclken(priv->clkid, true);
-      if (err)
+      if (err != 0 && err != -EAGAIN)
         {
           mcerr("Couldn't enable EMMC%d clock: %d", priv->slotno, err);
           return NULL;
         }
 
-      /* Determine the base block rate.
+      /* Determine the base clock rate.
        * NOTE: This driver assumes that it is in complete control of the EMMC
        * base clocks, and that they will not change without its knowledge.
+       *
+       * TODO: This call also returns 0x80000008 response code, but the rate
+       * value returned is reasonable (100MHz). For now, I am ignoring the
+       * 0x80000008 response code, not sure why that happens though.
        */
 
       err = bcm2711_mbox_getclkrate(priv->clkid, &priv->baseclk, false);
-      if (err)
+      if (err != -EAGAIN && err != 0)
         {
           mcerr("Couldn't determine base clock rate for EMMC%d: %d\n",
                 priv->slotno, err);
           return NULL;
         }
 
+      mcinfo("EMMC%d base clock: %uHz\n", priv->slotno, priv->baseclk);
+
+      /* Special case: EMMC2 accesses SD card, so ensure it is powered and
+       * power is stable.
+       */
+
+      if (priv->slotno == 2)
+        {
+          err = bcm2711_mbox_setpwr(MBOX_PDOM_SDCARD, true, true);
+          if (err)
+            {
+              mcerr("Couldn't power SD card: %d\n", err);
+              return NULL;
+            }
+        }
+
       /* Reset device */
 
-      bcm2711_reset(&priv->dev);
+      // bcm2711_reset(&priv->dev); // TODO: put back
       priv->inited = true;
     }
 
