@@ -48,6 +48,7 @@
 
 #include "arm64_arch.h"
 #include "arm64_gic.h"
+#include "bcm2711_gpio.h"
 #include "bcm2711_mailbox.h"
 #include "bcm2711_sdio.h"
 #include "chip.h"
@@ -60,6 +61,13 @@
 
 #define EMMC_ID_RATE (400000)
 
+/* The clock rate to use during normal operation with the SD card
+ * NOTE: taken from LLD again
+ * TODO: make this configurable in Kconfig for the user.
+ */
+
+#define EMMC_NORMAL_RATE (25000000)
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -68,12 +76,12 @@ struct bcm2711_sdio_dev_s
 {
   struct sdio_dev_s dev; /* SDIO device for upper-half */
 
-  uint32_t base;    /* Peripheral base address */
-  uint32_t baseclk; /* Base clock rate */
-  int slotno;       /* The slot number */
-  int err;          /* The error code reported from the interrupt handler */
-  uint8_t clkid;    /* EMMC clock ID for mailbox to enable */
-  sem_t wait;       /* Wait semaphore */
+  const uint32_t base; /* Peripheral base address */
+  uint32_t baseclk;    /* Base clock rate */
+  const int slotno;    /* The slot number */
+  int err;             /* The error reported from the IRQ handler */
+  const uint8_t clkid; /* EMMC clock ID for mailbox to enable */
+  sem_t wait;          /* Wait semaphore */
 
   /* Callback support */
 
@@ -351,14 +359,25 @@ static void bcm2711_reset(FAR struct sdio_dev_s *dev)
 {
   struct bcm2711_sdio_dev_s *priv = (struct bcm2711_sdio_dev_s *)dev;
 
-  /* Reset is performed by resetting all of the circuits. TODO: is this
-   * all that's necessary?
-   */
+  /* Reset is performed by resetting host controller. */
 
   mcinfo("Resetting %d...", priv->slotno);
 
-  putreg32(BCM_SDIO_CONTROL1_SRST_HC | BCM_SDIO_CONTROL1_SRST_CMD |
-               BCM_SDIO_CONTROL1_SRST_DATA,
+  putreg32(BCM_SDIO_CONTROL1_SRST_HC, BCM_SDIO_CONTROL1(priv->base));
+
+  /* Now we busy wait until the controller reports that it's done resetting by
+   * setting all the reset flags to 0.
+   * TODO: can we do better than a busy wait?
+   */
+
+  while ((getreg32(BCM_SDIO_CONTROL1(priv->base)) &
+          (BCM_SDIO_CONTROL1_SRST_HC | BCM_SDIO_CONTROL1_SRST_DATA |
+           BCM_SDIO_CONTROL1_SRST_CMD)) != 0)
+    ;
+
+  /* Enable VDD1 bus power for SD card */
+
+  modreg32(0x0f << 8, BCM_SDIO_CONTROL1_CLK_FREQ8,
            BCM_SDIO_CONTROL1(priv->base));
 
   // TODO: reset semaphore, wdog and etc.
@@ -495,20 +514,20 @@ static void bcm2711_clock(FAR struct sdio_dev_s *dev, enum sdio_clock_e rate)
 
     case CLOCK_MMC_TRANSFER:
       enable = true;
-      // TODO: decide on transfer rates, using low value for now
-      divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
+      // TODO: decide on transfer rates, using LLD value for now
+      divider = get_clock_divider(priv->baseclk, EMMC_NORMAL_RATE);
       break;
 
     case CLOCK_SD_TRANSFER_1BIT:
       enable = true;
-      // TODO: decide on transfer rates, using low value for now
-      divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
+      // TODO: decide on transfer rates, using LLD value for now
+      divider = get_clock_divider(priv->baseclk, EMMC_NORMAL_RATE);
       break;
 
     case CLOCK_SD_TRANSFER_4BIT:
       enable = true;
-      // TODO: decide on transfer rates, using low value for now
-      divider = get_clock_divider(priv->baseclk, EMMC_ID_RATE);
+      // TODO: decide on transfer rates, using LLD value for now
+      divider = get_clock_divider(priv->baseclk, EMMC_NORMAL_RATE);
       break;
 
     default:
@@ -557,6 +576,49 @@ static void bcm2711_clock(FAR struct sdio_dev_s *dev, enum sdio_clock_e rate)
 }
 
 /****************************************************************************
+ * Name: bcm2711_emmc_handler_internal
+ *
+ * Description:
+ *   Interrupt handling logic that works for all Arasan interfaces
+ *
+ ****************************************************************************/
+
+static int bcm2711_emmc_handler_internal(struct bcm2711_sdio_dev_s *priv)
+{
+  uint32_t flags;
+
+  /* Get interrupt flags */
+
+  flags = getreg32(BCM_SDIO_INTERRUPT(priv->base));
+  mcinfo("%d interrupts %08x", priv->slotno, flags);
+
+  /* Check for any errors and set the error value accordingly */
+
+  // TODO: acknowledge error ints
+  priv->err = 0;
+
+  if (flags &
+      (BCM_SDIO_INTERRUPT_ERR | BCM_SDIO_INTERRUPT_CCRC_ERR |
+       BCM_SDIO_INTERRUPT_CEND_ERR | BCM_SDIO_INTERRUPT_CBAD_ERR |
+       BCM_SDIO_INTERRUPT_DCRC_ERR | BCM_SDIO_INTERRUPT_DEND_ERR |
+       BCM_SDIO_INTERRUPT_ACMD_ERR))
+    {
+      priv->err = -EIO;
+    }
+  else if (flags &
+           (BCM_SDIO_INTERRUPT_CTO_ERR | BCM_SDIO_INTERRUPT_DTO_ERR))
+    {
+      priv->err = -ETIMEDOUT;
+    }
+  else if (flags & BCM_SDIO_INTERRUPT_CARD)
+    {
+      mcinfo("Card interrupt!"); // TODO: remove
+    }
+
+  return OK;
+}
+
+/****************************************************************************
  * Name: bcm2711_emmc_handler
  *
  * Description:
@@ -569,40 +631,23 @@ static int bcm2711_emmc_handler(int irq, void *context, void *arg)
   (void)(irq);
   (void)(context);
   (void)(arg);
-  uint32_t interrupts;
+  int err;
 
-  /* Verify that EMMC2 received the interrupt, since EMMC1 is not yet
-   * supported.
-   */
+  /* Handle interrupts for all interfaces */
 
-  interrupts = getreg32(BCM_SDIO_INTERRUPT(g_emmc2.base));
-  mcinfo("%d interrupts %08x", g_emmc2.slotno, interrupts);
-  if (interrupts == 0)
+  if (getreg32(BCM_SDIO_INTERRUPT(g_emmc2.base)))
     {
-      return OK; /* Nothing to do */
+      err = bcm2711_emmc_handler_internal(&g_emmc2);
+      if (err)
+        {
+          return err;
+        }
     }
-
-  /* Check for any errors and set the error value accordingly */
-
-  // TODO: acknowledge error ints
-  g_emmc2.err = 0;
-
-  if (interrupts &
-      (BCM_SDIO_INTERRUPT_ERR | BCM_SDIO_INTERRUPT_CCRC_ERR |
-       BCM_SDIO_INTERRUPT_CEND_ERR | BCM_SDIO_INTERRUPT_CBAD_ERR |
-       BCM_SDIO_INTERRUPT_DCRC_ERR | BCM_SDIO_INTERRUPT_DEND_ERR |
-       BCM_SDIO_INTERRUPT_ACMD_ERR))
+  else
     {
-      g_emmc2.err = -EIO;
-    }
-  else if (interrupts &
-           (BCM_SDIO_INTERRUPT_CTO_ERR | BCM_SDIO_INTERRUPT_DTO_ERR))
-    {
-      g_emmc2.err = -ETIMEDOUT;
-    }
-  else if (interrupts & BCM_SDIO_INTERRUPT_CARD)
-    {
-      mcinfo("Card interrupt!"); // TODO: remove
+      // TODO: Since EMMC1 is not supported, we should never be here
+      mcerr("Non-EMMC2 interrupt even though unsupported!");
+      DEBUGASSERT(false && "Non-EMMC2 interrupt even though unsupported!");
     }
 
   return OK;
@@ -644,8 +689,14 @@ static int bcm2711_attach(FAR struct sdio_dev_s *dev)
 
   mcinfo("EMMC interrupt handler attached for slot %d.", priv->slotno);
 
-  // TODO: any actual device specific interrupt settings that need to be
-  // enabled here?
+  /* Enable all interrupts.
+   * TODO: should I only enable a subset of these?
+   */
+
+  // TODO: this is technically sloppy, since we write reserved bits as 1 when
+  // they should be written as 0 per datasheet
+  putreg32(~0, BCM_SDIO_IRPT_MASK(priv->base)); /* Unmask interrupts */
+  putreg32(~0, BCM_SDIO_IRPT_EN(priv->base));   /* Enable */
 
   /* Enable the interrupt handler */
 
@@ -655,15 +706,14 @@ static int bcm2711_attach(FAR struct sdio_dev_s *dev)
   mcinfo("EMMC IRQ enabled.");
 
   // TODO: remove
-  // For fun, force an error interrupt
-  putreg32(BCM_SDIO_IRPT_EN_CARD, BCM_SDIO_IRPT_EN(g_emmc2.base));
+  // To test interrupt handling, force an interrupt
+
   mcinfo("Enabled interrupts: %08x.",
-         getreg32(BCM_SDIO_IRPT_EN(g_emmc2.base)));
-  mcinfo("Masked interrupts: %08x.",
-         getreg32(BCM_SDIO_IRPT_MASK(g_emmc2.base)));
+         getreg32(BCM_SDIO_IRPT_EN(priv->base)));
+  mcinfo("Interrupt mask: %08x.", getreg32(BCM_SDIO_IRPT_MASK(priv->base)));
 
   mcinfo("Forcing card interrupt.");
-  putreg32(BCM_SDIO_FORCE_IRPT_CARD, BCM_SDIO_FORCE_IRPT(g_emmc2.base));
+  putreg32(BCM_SDIO_FORCE_IRPT_CARD, BCM_SDIO_FORCE_IRPT(priv->base));
 
   return 0;
 }
@@ -1241,71 +1291,114 @@ struct sdio_dev_s *bcm2711_sdio_initialize(int slotno)
   int err;
   struct bcm2711_sdio_dev_s *priv = NULL;
 
+  /* NOTE:
+   * According to https://ultibo.org/wiki/Unit_BCM2711:
+   * - EMMC0 is an Arasan controller
+   *   - No card detect pin
+   *   - No write protect pin
+   *   - Routed to 22/27 (ALT3) or 48-53 (ALT3)
+   *   - GPIO pins 34-49 (ALT3) provide SDIO control to Wifi
+   * - EMMC1 is non-SDHCI compliant device
+   *   - Can be routed to 22-27 (ALT0) or 48-53 (ALT0), but only 22-27 can be
+   *   used.
+   * - EMMC2 is an SDHCI compliant device, doesn't appear on GPIO pins,
+   *   connected to SD card slot
+   *   - BCM2838_GPPINMUX register routes EMMC0 to SD-card slot, making EMMC2
+   *   usable.
+   */
+
   switch (slotno)
     {
-    case 2:
-      priv = &g_emmc2;
-      break;
     case 1:
       mcerr("EMMC1 currently unsupported/untested.");
       return NULL;
+    case 2:
+      priv = &g_emmc2;
+      break;
     default:
       mcerr("No SDIO slot number '%d'", slotno);
       return NULL;
     }
 
-  if (!priv->inited)
+  /* If the device was already initialized, return it */
+
+  if (priv->inited)
     {
-      /* Enable correct clock.
-       * TODO: clocks seem to be enabled by default. Currently `setclken`
-       * returns 0x80000008 response code so I'm ignoring this out for now.
-       */
-
-      err = bcm2711_mbox_setclken(priv->clkid, true);
-      if (err != 0 && err != -EAGAIN)
-        {
-          mcerr("Couldn't enable EMMC%d clock: %d", priv->slotno, err);
-          return NULL;
-        }
-
-      /* Determine the base clock rate.
-       * NOTE: This driver assumes that it is in complete control of the EMMC
-       * base clocks, and that they will not change without its knowledge.
-       *
-       * TODO: This call also returns 0x80000008 response code, but the rate
-       * value returned is reasonable (100MHz). For now, I am ignoring the
-       * 0x80000008 response code, not sure why that happens though.
-       */
-
-      err = bcm2711_mbox_getclkrate(priv->clkid, &priv->baseclk, false);
-      if (err != -EAGAIN && err != 0)
-        {
-          mcerr("Couldn't determine base clock rate for EMMC%d: %d\n",
-                priv->slotno, err);
-          return NULL;
-        }
-
-      mcinfo("EMMC%d base clock: %uHz\n", priv->slotno, priv->baseclk);
-
-      /* Special case: EMMC2 accesses SD card, so ensure it is powered and
-       * power is stable.
-       */
-
-      if (priv->slotno == 2)
-        {
-          err = bcm2711_mbox_setpwr(MBOX_PDOM_SDCARD, true, true);
-          if (err)
-            {
-              mcerr("Couldn't power SD card: %d\n", err);
-              return NULL;
-            }
-        }
-
-      /* Reset device */
-
-      // bcm2711_reset(&priv->dev); // TODO: put back
-      priv->inited = true;
+      return &priv->dev;
     }
 
+  /* Configure GPIO pins for the interface TODO: have I matched pins to right
+   * interface? LLD controls EMMC2 only and sets all these pins during init */
+
+  switch (priv->slotno) {
+    case 1:
+      // TODO
+      break;
+    case 2:
+      bcm2711_gpio_set_func(34, BCM_GPIO_INPUT);
+      bcm2711_gpio_set_func(35, BCM_GPIO_INPUT);
+      bcm2711_gpio_set_func(36, BCM_GPIO_INPUT);
+      bcm2711_gpio_set_func(37, BCM_GPIO_INPUT);
+      bcm2711_gpio_set_func(38, BCM_GPIO_INPUT);
+      bcm2711_gpio_set_func(39, BCM_GPIO_INPUT);
+
+      bcm2711_gpio_set_func(48, BCM_GPIO_FUNC3);
+      bcm2711_gpio_set_func(49, BCM_GPIO_FUNC3);
+      bcm2711_gpio_set_func(50, BCM_GPIO_FUNC3);
+      bcm2711_gpio_set_func(51, BCM_GPIO_FUNC3);
+      bcm2711_gpio_set_func(52, BCM_GPIO_FUNC3);
+      break;
+    }
+
+  /* Reset device */
+
+  bcm2711_reset(&priv->dev);
+
+  /* Enable correct clock.
+   * TODO: clocks seem to be enabled by default. Currently `setclken`
+   * returns 0x80000008 response code so I'm ignoring this out for now.
+   */
+
+  err = bcm2711_mbox_setclken(priv->clkid, true);
+  if (err != 0 && err != -EAGAIN)
+    {
+      mcerr("Couldn't enable EMMC%d clock: %d", priv->slotno, err);
+      return NULL;
+    }
+
+  /* Determine the base clock rate.
+   * NOTE: This driver assumes that it is in complete control of the EMMC
+   * base clocks, and that they will not change without its knowledge.
+   *
+   * TODO: This call also returns 0x80000008 response code, but the rate
+   * value returned is reasonable (100MHz). For now, I am ignoring the
+   * 0x80000008 response code, not sure why that happens though.
+   */
+
+  err = bcm2711_mbox_getclkrate(priv->clkid, &priv->baseclk, false);
+  if (err != -EAGAIN && err != 0)
+    {
+      mcerr("Couldn't determine base clock rate for EMMC%d: %d\n",
+            priv->slotno, err);
+      return NULL;
+    }
+
+  mcinfo("EMMC%d base clock: %uHz\n", priv->slotno, priv->baseclk);
+
+  /* Special case: EMMC2 accesses SD card, so ensure it is powered and
+   * power is stable.
+   */
+
+  if (priv->slotno == 2)
+    {
+      err = bcm2711_mbox_setpwr(MBOX_PDOM_SDCARD, true, true);
+      if (err)
+        {
+          mcerr("Couldn't power SD card: %d\n", err);
+          return NULL;
+        }
+    }
+
+  priv->inited = true;
   return &priv->dev;
 }
