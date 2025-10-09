@@ -615,6 +615,14 @@ static int bcm2711_emmc_handler_internal(struct bcm2711_sdio_dev_s *priv)
       mcinfo("Card interrupt!"); // TODO: remove
     }
 
+  /* TODO: For now, we acknowledge all interrupts so that we can move on
+   * without the handler getting called forever. This is because the interrupt
+   * handler logic only seems to work on 'level', not 'edge', so we must
+   * immediately acknowledge the interrupts.
+   */
+
+  putreg32(flags, BCM_SDIO_INTERRUPT(priv->base));
+
   return OK;
 }
 
@@ -689,32 +697,19 @@ static int bcm2711_attach(FAR struct sdio_dev_s *dev)
 
   mcinfo("EMMC interrupt handler attached for slot %d.", priv->slotno);
 
-  /* Enable all interrupts.
+  /* Enable and unmask all interrupts.
    * TODO: should I only enable a subset of these?
    */
 
-  // TODO: this is technically sloppy, since we write reserved bits as 1 when
-  // they should be written as 0 per datasheet
-  putreg32(~0, BCM_SDIO_IRPT_MASK(priv->base)); /* Unmask interrupts */
-  putreg32(~0, BCM_SDIO_IRPT_EN(priv->base));   /* Enable */
+  putreg32(BCM_SDIO_IRPT_MASK_ALL, BCM_SDIO_IRPT_MASK(priv->base));
+  putreg32(BCM_SDIO_IRPT_EN_ALL, BCM_SDIO_IRPT_EN(priv->base));
 
   /* Enable the interrupt handler */
 
-  arm64_gic_irq_set_priority(BCM_IRQ_VC_EMMC, 0, IRQ_TYPE_EDGE);
+  arm64_gic_irq_set_priority(BCM_IRQ_VC_EMMC, 0, IRQ_TYPE_LEVEL);
   up_enable_irq(BCM_IRQ_VC_EMMC);
   g_emmc_irqinit = true;
   mcinfo("EMMC IRQ enabled.");
-
-  // TODO: remove
-  // To test interrupt handling, force an interrupt
-
-  mcinfo("Enabled interrupts: %08x.",
-         getreg32(BCM_SDIO_IRPT_EN(priv->base)));
-  mcinfo("Interrupt mask: %08x.", getreg32(BCM_SDIO_IRPT_MASK(priv->base)));
-
-  mcinfo("Forcing card interrupt.");
-  putreg32(BCM_SDIO_FORCE_IRPT_CARD, BCM_SDIO_FORCE_IRPT(priv->base));
-
   return 0;
 }
 
