@@ -45,22 +45,16 @@
  * The GIC-400 uses GICv2 architecture.
  */
 
-#if defined(CONFIG_BCM2711_LOW_PERIPHERAL)
-
 /* Low peripheral GIC address */
 
-#define BCM_GIC400_BASEADDR 0xff840000
-
+#ifdef CONFIG_RUNNING_ON_XEN
+# define BCM_GIC400_BASEADDR 0x03000000UL
 #else
+# define BCM_GIC400_BASEADDR 0x107fff8000UL
+#endif // CONFIG_RUNNING_ON_XEN
 
-/* Used for both 35-bit addressing and legacy mode. */
-
-#define BCM_GIC400_BASEADDR 0x4c0040000
-
-#endif // defined(CONFIG_BCM2711_LOW_PERIPHERAL)
-
-#define BCM_GIC400_DISTOFFSET 0x00001000  /* Distributor */
-#define BCM_GIC400_RDISTOFFSET 0x00002000 /* CPU Interfaces */
+#define BCM_GIC400_DISTOFFSET 0x00001000UL  /* Distributor */
+#define BCM_GIC400_RDISTOFFSET 0x00002000UL /* CPU Interfaces */
 #define CONFIG_GICD_BASE (BCM_GIC400_BASEADDR + BCM_GIC400_DISTOFFSET)
 #define CONFIG_GICR_BASE (BCM_GIC400_BASEADDR + BCM_GIC400_RDISTOFFSET)
 #define CONFIG_GICR_OFFSET BCM_GIC400_RDISTOFFSET
@@ -69,30 +63,44 @@
  * TODO: verify and test against all variants (1, 2, 4 & 8GB)
  */
 
-#define CONFIG_RAMBANK1_ADDR (0x000000000)
+#ifdef CONFIG_RUNNING_ON_XEN
+# define CONFIG_RAMBANK1_ADDR (0x40000000)
+# define CONFIG_RAMBANK1_SIZE 0x80000000
+#else
+# define CONFIG_RAMBANK1_ADDR (0x000000000)
+# if defined(CONFIG_RPI4B_RAM_4GB) || defined(CONFIG_RPI4B_RAM_8GB)
+#  define CONFIG_RAMBANK1_SIZE GB(4) - MB(64)
+# endif /* defined(CONFIG_RPI4B_RAM_4GB) || defined(CONFIG_RPI4B_RAM_8GB) */
+#endif // CONFIG_RUNNING_ON_XEN
 
 /* Both the 4GB and 8GB ram variants use all the size in RAMBANK1 */
-
-#if defined(CONFIG_RPI4B_RAM_4GB) || defined(CONFIG_RPI4B_RAM_8GB)
-#define CONFIG_RAMBANK1_SIZE GB(4) - MB(64)
-#endif /* defined(CONFIG_RPI4B_RAM_4GB) || defined(CONFIG_RPI4B_RAM_8GB) */
 
 /* The 8GB version begins to use a second RAM bank.
  * TODO: verify this works on 8GB
  */
 
 #if defined(CONFIG_RPI4B_RAM_8GB)
-#define CONFIG_RAMBANK2_ADDR (0x100000000)
-#define CONFIG_RAMBANK2_SIZE GB(4)
+# define CONFIG_RAMBANK2_ADDR (0x100000000)
+# define CONFIG_RAMBANK2_SIZE GB(4)
 #endif /* defined(CONFIG_RPI4B_RAM_8GB) */
 
 /* TODO: for low peripheral mode this is valid, otherwise it might change */
-#define CONFIG_DEVICEIO_BASEADDR (0x0fc000000)
-#define CONFIG_DEVICEIO_SIZE MB(64)
+#ifdef CONFIG_RUNNING_ON_XEN
+# define CONFIG_DEVICEIO_BASEADDR (0x80000000UL)
+# define CONFIG_DEVICEIO_SIZE 0x80000000UL
+#else
+# define CONFIG_DEVICEIO_BASEADDR (0x107C000000UL)
+# define CONFIG_DEVICEIO_SIZE 0x4000000UL
+#endif
+//#define CONFIG_DEVICEIO_SIZE 0x3FFFFFFUL
 
 /* Raspberry Pi 4B loads NuttX at this address */
 
-#define CONFIG_LOAD_BASE 0x480000
+#ifdef CONFIG_RUNNING_ON_XEN
+# define CONFIG_LOAD_BASE 0x40480000 
+#else
+# define CONFIG_LOAD_BASE 0x480000
+#endif // CONFIG_RUNNING_ON_XEN
 
 #define MPID_TO_CLUSTER_ID(mpid) ((mpid) & ~0xff)
 
@@ -102,10 +110,18 @@
 
 #ifdef __ASSEMBLY__
 
+#ifndef CONFIG_RUNNING_ON_XEN
+.macro  get_cpu_id xreg0
+  mrs    \xreg0, mpidr_el1
+  and    \xreg0, \xreg0, #0x7f00
+  lsr    \xreg0, \xreg0, #8
+.endm
+#else
 .macro  get_cpu_id xreg0
   mrs    \xreg0, mpidr_el1
   ubfx   \xreg0, \xreg0, #0, #8
 .endm
+#endif // CONFIG_RUNNING_ON_XEN
 
 #endif /* __ASSEMBLY__ */
 

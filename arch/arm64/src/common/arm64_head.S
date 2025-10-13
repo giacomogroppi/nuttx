@@ -294,6 +294,38 @@ el3_boot:
 
 jump_to_c_entry:
     PRINT(jump_to_c_entry, "- Boot to C runtime for OS Initialize\r\n")
+    
+#ifdef CONFIG_RUNNING_ON_XEN
+    // enable the mmu for xen
+    ldr x1, =0x4ff00
+    msr	MAIR_EL1, x1
+
+    ldr x1, =0x0000000000802510
+    msr TCR_EL1, x1
+
+    adr x1, root_page_table
+    msr TTBR0_EL1, x1
+
+    // Enable floating point
+    mov x1, #(3 << 20)
+    msr CPACR_EL1, x1
+
+    //TODO: invalidate caches, bp, .. ?
+
+    tlbi	vmalle1
+	dsb	nsh
+	isb
+
+    ldr x1, =0x30c51835
+    msr SCTLR_EL1, x1
+
+    tlbi	vmalle1
+	dsb	nsh
+	isb
+    mov fp, xzr
+    // end mmu init for xen
+#endif // CONFIG_RUNNING_ON_XEN
+
     ret x25
 
 /* Fail-stop */
@@ -416,3 +448,31 @@ arm64_data_initialize:
     .quad   _sbss
     .quad   _ebss
     .size   .Linitparms, . -.Linitparms
+
+#ifdef CONFIG_RUNNING_ON_XEN
+.section .text, "aw"
+.balign 0x1000
+
+l1_page_table:
+
+    //0x00000000 - 0x7FFFFFFF   RAM
+    .set ADDR, 0
+    .rept   2
+    .8byte (0x1 | 0x704) + ADDR
+    .set ADDR, ADDR + 0x40000000
+    .endr
+
+     //0x80000000 - 0xFFFFFFFF  DEVICES
+    .rept   2
+    .8byte (0x1 | 0x708) + ADDR
+    .set ADDR, ADDR + 0x40000000
+    .endr
+
+    .balign 0x1000
+
+.global root_page_table
+root_page_table:
+    .8byte (0x3) + l1_page_table
+    .balign 0x1000
+
+#endif // CONFIG_RUNNING_ON_XEN

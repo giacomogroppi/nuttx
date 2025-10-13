@@ -416,13 +416,14 @@ void bcm2711_gpio_pin_set(uint32_t gpio, bool set)
 {
   DEBUGASSERT(gpio < BCM_GPIO_NUM);
 
+  // TODO: disable temporarly
   if (set)
     {
-      bcm2711_gpio_help_set(gpio, BCM_GPIO_GPSET0, BCM_GPIO_GPSET0, true);
+      //bcm2711_gpio_help_set(gpio, BCM_GPIO_GPSET0, BCM_GPIO_GPSET0, true);
     }
   else
     {
-      bcm2711_gpio_help_set(gpio, BCM_GPIO_GPCLR0, BCM_GPIO_GPCLR0, true);
+      //bcm2711_gpio_help_set(gpio, BCM_GPIO_GPCLR0, BCM_GPIO_GPCLR0, true);
     }
 }
 
@@ -474,7 +475,8 @@ bool bcm2711_gpio_pin_get(uint32_t gpio)
 bool bcm2711_gpio_event_get(uint32_t gpio)
 {
   DEBUGASSERT(gpio < BCM_GPIO_NUM);
-  return bcm2711_gpio_help_get(gpio, BCM_GPIO_GPEDS0, BCM_GPIO_GPEDS1);
+  //return bcm2711_gpio_help_get(gpio, BCM_GPIO_GPEDS0, BCM_GPIO_GPEDS1);
+  return 1;
 }
 
 /****************************************************************************
@@ -491,7 +493,7 @@ bool bcm2711_gpio_event_get(uint32_t gpio)
 void bcm2711_gpio_event_clear(uint32_t gpio)
 {
   DEBUGASSERT(gpio < BCM_GPIO_NUM);
-  bcm2711_gpio_help_set(gpio, BCM_GPIO_GPEDS0, BCM_GPIO_GPEDS1, false);
+  //bcm2711_gpio_help_set(gpio, BCM_GPIO_GPEDS0, BCM_GPIO_GPEDS1, false);
 }
 
 /****************************************************************************
@@ -509,7 +511,7 @@ void bcm2711_gpio_event_clear(uint32_t gpio)
 void bcm2711_gpio_rising_edge(uint32_t gpio, bool set)
 {
   DEBUGASSERT(gpio < BCM_GPIO_NUM);
-  bcm2711_gpio_help_set(gpio, BCM_GPIO_GPREN0, BCM_GPIO_GPREN1, set);
+  //bcm2711_gpio_help_set(gpio, BCM_GPIO_GPREN0, BCM_GPIO_GPREN1, set);
 }
 
 /****************************************************************************
@@ -527,7 +529,7 @@ void bcm2711_gpio_rising_edge(uint32_t gpio, bool set)
 void bcm2711_gpio_falling_edge(uint32_t gpio, bool set)
 {
   DEBUGASSERT(gpio < BCM_GPIO_NUM);
-  bcm2711_gpio_help_set(gpio, BCM_GPIO_GPFEN0, BCM_GPIO_GPFEN1, set);
+  //bcm2711_gpio_help_set(gpio, BCM_GPIO_GPFEN0, BCM_GPIO_GPFEN1, set);
 }
 
 /****************************************************************************
@@ -545,7 +547,7 @@ void bcm2711_gpio_falling_edge(uint32_t gpio, bool set)
 void bcm2711_gpio_high_level(uint32_t gpio, bool set)
 {
   DEBUGASSERT(gpio < BCM_GPIO_NUM);
-  bcm2711_gpio_help_set(gpio, BCM_GPIO_GPHEN0, BCM_GPIO_GPHEN1, set);
+  //bcm2711_gpio_help_set(gpio, BCM_GPIO_GPHEN0, BCM_GPIO_GPHEN1, set);
 }
 
 /****************************************************************************
@@ -563,7 +565,7 @@ void bcm2711_gpio_high_level(uint32_t gpio, bool set)
 void bcm2711_gpio_low_level(uint32_t gpio, bool set)
 {
   DEBUGASSERT(gpio < BCM_GPIO_NUM);
-  bcm2711_gpio_help_set(gpio, BCM_GPIO_GPLEN0, BCM_GPIO_GPLEN1, set);
+  //bcm2711_gpio_help_set(gpio, BCM_GPIO_GPLEN0, BCM_GPIO_GPLEN1, set);
 }
 
 /****************************************************************************
@@ -581,7 +583,7 @@ void bcm2711_gpio_low_level(uint32_t gpio, bool set)
 void bcm2711_gpio_rising_edge_async(uint32_t gpio, bool set)
 {
   DEBUGASSERT(gpio < BCM_GPIO_NUM);
-  bcm2711_gpio_help_set(gpio, BCM_GPIO_GPAREN0, BCM_GPIO_GPAREN1, set);
+  //bcm2711_gpio_help_set(gpio, BCM_GPIO_GPAREN0, BCM_GPIO_GPAREN1, set);
 }
 
 /****************************************************************************
@@ -599,7 +601,7 @@ void bcm2711_gpio_rising_edge_async(uint32_t gpio, bool set)
 void bcm2711_gpio_falling_edge_async(uint32_t gpio, bool set)
 {
   DEBUGASSERT(gpio < BCM_GPIO_NUM);
-  bcm2711_gpio_help_set(gpio, BCM_GPIO_GPAFEN0, BCM_GPIO_GPAFEN1, set);
+  //bcm2711_gpio_help_set(gpio, BCM_GPIO_GPAFEN0, BCM_GPIO_GPAFEN1, set);
 }
 
 /****************************************************************************
@@ -616,6 +618,29 @@ void bcm2711_gpio_falling_edge_async(uint32_t gpio, bool set)
  *   arg - The argument to be passed to the interrupt handler.
  *
  ****************************************************************************/
+
+
+static inline void write32 (unsigned long nAddress, unsigned nValue)
+{
+	*(unsigned volatile *) nAddress = nValue;
+}
+
+static inline unsigned read32 (unsigned long nAddress)
+{
+	return *(unsigned volatile *) nAddress;
+}
+
+void reboot (void)					// by PlutoniumBob@raspi-forum
+{
+	//PeripheralEntry ();
+
+	write32 (0x107d200024, (0x5A << 24) | 1);	// set some timeout
+
+#define PM_RSTC_WRCFG_FULL_RESET	0x20
+	write32 (0x107d20001c, (0x5A << 24) | PM_RSTC_WRCFG_FULL_RESET);
+
+	for (;;);					// wait for reset
+}
 
 int bcm2711_gpio_irq_attach(uint32_t gpio, xcpt_t isr, void *arg)
 {

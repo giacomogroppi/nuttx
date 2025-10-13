@@ -149,12 +149,52 @@ static void arm64_start_cpu(int cpu_num)
 #endif
 
 #ifdef CONFIG_ARM64_PSCI
+
+# ifdef CONFIG_RUNNING_ON_XEN
+    sinfo("Now we start: %d\n", cpu_num);	  
+    register uint64_t r0 asm("r0") = 0xc4000003;
+	  register uint64_t r1 asm("r1") = cpu_num;
+	  register uint64_t r2 asm("r2") = &__start;
+	  register uint64_t r3 asm("r3") = 0;
+
+    asm volatile(
+       		"smc	#0\n"
+			: "=r" (r0)
+			: "r" (r0), "r" (r1), "r" (r2)
+			: "r3");
+
+    sinfo("Trying to start CPU: %d\n", cpu_num);
+
+# else
+  int32_t nReturnCode;
+	asm volatile
+	(
+		"mov	x0, %1\n"
+		"mov	x1, %2\n"
+		"mov	x2, %3\n"
+		"mov	x3, %4\n"
+		"smc	#0\n"
+		"mov	%w0, w0\n"
+
+		: "=r" (nReturnCode)
+
+		: "r" (0xC4000003UL),			// function code CPU_ON
+		  "r" ((unsigned long) cpu_num << 8),		// target core
+		  "r" ((unsigned long) &__start),	// entry point
+		  "i" (0)				// context (unused)
+
+    : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9",
+  	  "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17"
+	);
+  /*
   if (psci_cpu_on(cpu_mpid, (uint64_t)__start))
     {
       serr("Failed to boot secondary CPU core %d (MPID:%#lx)\n", cpu_num,
            cpu_mpid);
       return;
     }
+    */
+# endif // CONFIG_RUNNING_ON_XEN
 #else
   UP_SEV();
 #endif

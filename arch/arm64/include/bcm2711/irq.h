@@ -28,7 +28,9 @@
  ****************************************************************************/
 
 #define NR_IRQS 216
-#define MPID_TO_CORE(mpid) (((mpid) >> MPIDR_AFF0_SHIFT) & MPIDR_AFFLVL_MASK)
+#ifndef CONFIG_RUNNING_ON_XEN
+# define MPID_TO_CORE(mpid) (((mpid) >> MPIDR_AFF1_SHIFT) & MPIDR_AFFLVL_MASK)
+#endif // CONFIG_RUNNING_ON_XEN
 
 /* ARMC interrupts */
 

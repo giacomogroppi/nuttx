@@ -35,32 +35,17 @@
 
 /* BCM2711 peripheral base address */
 
-#if defined(CONFIG_BCM2711_LOW_PERIPHERAL)
-
-/* Low peripheral addressing mode (default for RPi 4B boot) */
-
-#define BCM_PERIPHERAL_BASEADDR 0x0fe000000
-
-#elif defined(CONFIG_BCM2711_LEGACY_ADDR)
-
-/* Legacy addressing mode */
-
-#define BCM_PERIPHERAL_BASEADDR 0x07e000000
-
-#else
+#define BCM_PERIPHERAL_BASEADDR 0x107C000000UL
 
 /* 35-bit addressing mode */
 
-#define BCM_PERIPHERAL_BASEADDR 0x47e000000
-
-#endif // defined(CONFIG_BCM2711_LOW_PERIPHERAL)
 
 /* Base addresses for chip registers */
 
 #define BCM_ARMT_BASEADDR                                                    \
   (BCM_PERIPHERAL_BASEADDR + 0x0000b000) /* ARM timer */
 #define BCM_AUX_BASEADDR                                                     \
-  (BCM_PERIPHERAL_BASEADDR + 0x000215000) /* Auxiliary */
+  (0x107D001000UL) /* Auxiliary */
 #define BCM_GPCLK_BASEADDR                                                   \
   (BCM_PERIPHERAL_BASEADDR + 0x000101000) /* General purpose clock */
 #define BCM_GPIO_BASEADDR                                                    \

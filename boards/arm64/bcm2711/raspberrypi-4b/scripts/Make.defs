@@ -23,7 +23,11 @@ include $(TOPDIR)/tools/Config.mk
 include $(TOPDIR)/tools/bcm2711/Config.mk
 include $(TOPDIR)/arch/arm64/src/Toolchain.defs
 
+ifdef CONFIG_RUNNING_ON_XEN
+LDSCRIPT = dramboot_xen.ld
+else
 LDSCRIPT = dramboot.ld
+endif
 
 ARCHSCRIPT += $(BOARD_DIR)$(DELIM)scripts$(DELIM)$(LDSCRIPT)
 

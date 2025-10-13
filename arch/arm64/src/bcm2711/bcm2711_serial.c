@@ -111,25 +111,25 @@ struct bcm2711_uart_port_s
 
 /* Mini UART helper functions */
 
-static void bcm2711_miniuart_wait_send(struct uart_dev_s *dev, char c);
-static int bcm2711_miniuart_irq_handler(int irq, void *context, void *arg);
+//static void bcm2711_miniuart_wait_send(struct uart_dev_s *dev, char c);
+//static int bcm2711_miniuart_irq_handler(int irq, void *context, void *arg);
 
 /* Mini UART operations */
 
-static int bcm2711_miniuart_setup(struct uart_dev_s *dev);
-static void bcm2711_miniuart_shutdown(struct uart_dev_s *dev);
-static int bcm2711_miniuart_attach(struct uart_dev_s *dev);
-static void bcm2711_miniuart_detach(struct uart_dev_s *dev);
-static int bcm2711_miniuart_ioctl(struct file *filep, int cmd,
-                                  unsigned long arg);
-static int bcm2711_miniuart_receive(struct uart_dev_s *dev,
-                                    unsigned int *status);
-static void bcm2711_miniuart_rxint(struct uart_dev_s *dev, bool enable);
-static bool bcm2711_miniuart_rxavailable(struct uart_dev_s *dev);
-static void bcm2711_miniuart_send(struct uart_dev_s *dev, int c);
-static void bcm2711_miniuart_txint(struct uart_dev_s *dev, bool enable);
-static bool bcm2711_miniuart_txready(struct uart_dev_s *dev);
-static bool bcm2711_miniuart_txempty(struct uart_dev_s *dev);
+//static int bcm2711_miniuart_setup(struct uart_dev_s *dev);
+//static void bcm2711_miniuart_shutdown(struct uart_dev_s *dev);
+// static int bcm2711_miniuart_attach(struct uart_dev_s *dev);
+// static void bcm2711_miniuart_detach(struct uart_dev_s *dev);
+//static int bcm2711_miniuart_ioctl(struct file *filep, int cmd,
+//                                  unsigned long arg);
+//static int bcm2711_miniuart_receive(struct uart_dev_s *dev,
+//                                    unsigned int *status);
+//static void bcm2711_miniuart_rxint(struct uart_dev_s *dev, bool enable);
+//static bool bcm2711_miniuart_rxavailable(struct uart_dev_s *dev);
+//static void bcm2711_miniuart_send(struct uart_dev_s *dev, int c);
+//static void bcm2711_miniuart_txint(struct uart_dev_s *dev, bool enable);
+//static bool bcm2711_miniuart_txready(struct uart_dev_s *dev);
+//static bool bcm2711_miniuart_txempty(struct uart_dev_s *dev);
 
 /***************************************************************************
  * Private Data
@@ -139,7 +139,25 @@ static bool bcm2711_miniuart_txempty(struct uart_dev_s *dev);
 
 static const struct uart_ops_s g_miniuart_ops =
 {
-    .setup = bcm2711_miniuart_setup,
+    .setup = NULL,
+    .shutdown = NULL,
+    .attach = NULL,
+    .detach = NULL,
+    .ioctl = NULL,
+    .receive = NULL,
+    .rxint = NULL,
+    .rxavailable = NULL,
+#ifdef CONFIG_SERIAL_IFLOWCONTROL
+    .rxflowcontrol = NULL,
+#endif
+    .send = NULL,
+    .txint = NULL,
+    .txready = NULL,
+    .txempty = NULL,
+    
+
+
+    /*.setup = bcm2711_miniuart_setup,
     .shutdown = bcm2711_miniuart_shutdown,
     .attach = bcm2711_miniuart_attach,
     .detach = bcm2711_miniuart_detach,
@@ -153,7 +171,7 @@ static const struct uart_ops_s g_miniuart_ops =
     .send = bcm2711_miniuart_send,
     .txint = bcm2711_miniuart_txint,
     .txready = bcm2711_miniuart_txready,
-    .txempty = bcm2711_miniuart_txempty,
+    .txempty = bcm2711_miniuart_txempty,*/
 };
 
 /* Mini UART I/O Buffers (Console) */
@@ -208,17 +226,19 @@ static struct uart_dev_s g_miniuartport =
  *
  ***************************************************************************/
 
-static void bcm2711_miniuart_txint(struct uart_dev_s *dev, bool enable)
+/*static void bcm2711_miniuart_txint(struct uart_dev_s *dev, bool enable)
 {
+  unsigned currentValue = getreg32(BCM_PL011_IMSC_ADDR);
+
   if (enable)
     {
-      modreg32(BCM_AUX_MU_IER_TXD, BCM_AUX_MU_IER_TXD, BCM_AUX_MU_IER_REG);
+      putreg32(currentValue | (1 << 5), BCM_PL011_IMSC_ADDR);
     }
   else
     {
-      modreg32(0, BCM_AUX_MU_IER_TXD, BCM_AUX_MU_IER_REG);
+      putreg32(currentValue & (~(1 << 5)), BCM_PL011_IMSC_ADDR);
     }
-}
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_rxint
@@ -235,17 +255,19 @@ static void bcm2711_miniuart_txint(struct uart_dev_s *dev, bool enable)
  *
  ***************************************************************************/
 
-static void bcm2711_miniuart_rxint(struct uart_dev_s *dev, bool enable)
+/*static void bcm2711_miniuart_rxint(struct uart_dev_s *dev, bool enable)
 {
+  unsigned currentValue = getreg32(BCM_PL011_IMSC_ADDR);
+
   if (enable)
     {
-      modreg32(BCM_AUX_MU_IER_RXD, BCM_AUX_MU_IER_RXD, BCM_AUX_MU_IER_REG);
+      putreg32(currentValue | (1 << 4), BCM_PL011_IMSC_ADDR);
     }
   else
     {
-      modreg32(0, BCM_AUX_MU_IER_RXD, BCM_AUX_MU_IER_REG);
+      putreg32(currentValue & (~(1 << 4)), BCM_PL011_IMSC_ADDR);
     }
-}
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_shutdown
@@ -262,17 +284,17 @@ static void bcm2711_miniuart_rxint(struct uart_dev_s *dev, bool enable)
  *
  ***************************************************************************/
 
-static void bcm2711_miniuart_shutdown(struct uart_dev_s *dev)
+/*static void bcm2711_miniuart_shutdown(struct uart_dev_s *dev)
 {
-  /* Disable interrupts */
+  // Disable interrupts
 
   bcm2711_miniuart_rxint(dev, false);
   bcm2711_miniuart_txint(dev, false);
 
-  /* Disable Mini UART peripheral. */
+  // Disable Mini UART peripheral.
 
   modreg32(BCM_AUX_ENABLE_MU, BCM_AUX_ENABLE_MU, BCM_AUX_ENABLES);
-}
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_setup
@@ -289,71 +311,68 @@ static void bcm2711_miniuart_shutdown(struct uart_dev_s *dev)
  *
  ***************************************************************************/
 
-static int bcm2711_miniuart_setup(struct uart_dev_s *dev)
+/*static int bcm2711_miniuart_setup(struct uart_dev_s *dev)
 {
   struct bcm2711_miniuart_port_s *port =
       (struct bcm2711_miniuart_port_s *)dev->priv;
 
-  /* Enable Mini UART */
+  // Enable Mini UART
 
   modreg32(BCM_AUX_ENABLE_MU, BCM_AUX_ENABLE_MU, BCM_AUX_ENABLES);
 
-  /* Disable interrupts. */
+  //Disable interrupts.
 
   bcm2711_miniuart_txint(dev, false);
   bcm2711_miniuart_rxint(dev, false);
 
-  /* Disable TX and RX of the UART */
+  // Disable TX and RX of the UART
 
   modreg32(0, BCM_AUX_MU_CNTL_RXENABLE, BCM_AUX_MU_CNTL_REG);
   modreg32(0, BCM_AUX_MU_CNTL_TXENABLE, BCM_AUX_MU_CNTL_REG);
 
-  /* Set data bit count */
+  // Set data bit count 
 
   if (port->config.data_bits == 7)
     {
-      /* 7 data bits */
+      // 7 data bits
 
       modreg32(0, BCM_AUX_MU_LCR_DATA8B, BCM_AUX_MU_LCR_REG);
     }
   else
     {
-      /* 8 data bits */
+      // 8 data bits 
 
       modreg32(BCM_AUX_MU_LCR_DATA8B, BCM_AUX_MU_LCR_DATA8B,
                BCM_AUX_MU_LCR_REG);
     }
 
-  /* Ensure RTS line is low. */
+  //Ensure RTS line is low.
 
   modreg32(0, BCM_AUX_MU_MCR_RTS, BCM_AUX_MU_MCR_REG);
 
-  /* Clear the TX and RX FIFOs */
+  // Clear the TX and RX FIFOs
 
   modreg32(BCM_AUX_MU_IIR_RXCLEAR, BCM_AUX_MU_IIR_RXCLEAR,
            BCM_AUX_MU_IIR_REG);
   modreg32(BCM_AUX_MU_IIR_TXCLEAR, BCM_AUX_MU_IIR_TXCLEAR,
            BCM_AUX_MU_IIR_REG);
 
-  /* Set baud rate. */
+  // Set baud rate.
 
   putreg32(AUX_MU_BAUD(port->config.baud_rate), BCM_AUX_MU_BAUD_REG);
 
-  /* GPIO 14 and GPIO 15 are used as TX and RX.
-   * TODO: Make pins configurable.
-   */
 
-  /* Turn off pull-up/pull-down resistors. */
+  // Turn off pull-up/pull-down resistors.
 
-  bcm2711_gpio_set_pulls(14, false, false);
-  bcm2711_gpio_set_pulls(15, false, false);
+  //bcm2711_gpio_set_pulls(14, false, false);
+  //bcm2711_gpio_set_pulls(15, false, false);
 
-  /* Use alternative function 5 (UART1). */
+  // Use alternative function 5 (UART1).
 
-  bcm2711_gpio_set_func(14, BCM_GPIO_FUNC5);
-  bcm2711_gpio_set_func(15, BCM_GPIO_FUNC5);
+  //bcm2711_gpio_set_func(14, BCM_GPIO_FUNC5);
+  //bcm2711_gpio_set_func(15, BCM_GPIO_FUNC5);
 
-  /* Enable TX and RX again. */
+  // Enable TX and RX again.
 
   modreg32(BCM_AUX_MU_CNTL_TXENABLE, BCM_AUX_MU_CNTL_TXENABLE,
            BCM_AUX_MU_CNTL_REG);
@@ -361,7 +380,7 @@ static int bcm2711_miniuart_setup(struct uart_dev_s *dev)
            BCM_AUX_MU_CNTL_REG);
 
   return 0;
-}
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_txready
@@ -377,10 +396,10 @@ static int bcm2711_miniuart_setup(struct uart_dev_s *dev)
  *
  ***************************************************************************/
 
-static bool bcm2711_miniuart_txready(struct uart_dev_s *dev)
+/*static bool bcm2711_miniuart_txready(struct uart_dev_s *dev)
 {
-  return getreg32(BCM_AUX_MU_STAT_REG) & BCM_AUX_MU_STAT_SPACEAVAIL;
-}
+  return !!(getreg32(BCM_PL011_FR_ADDR) & (1 << 5));
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_txempty
@@ -396,10 +415,11 @@ static bool bcm2711_miniuart_txready(struct uart_dev_s *dev)
  *
  ***************************************************************************/
 
-static bool bcm2711_miniuart_txempty(struct uart_dev_s *dev)
+/*static bool bcm2711_miniuart_txempty(struct uart_dev_s *dev)
 {
-  return getreg32(BCM_AUX_MU_STAT_REG) & BCM_AUX_MU_STAT_TXEMPTY;
-}
+  unsigned txEmpty = getreg32(BCM_PL011_FR_ADDR) & (1 << 7);
+  return !!txEmpty;
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_rxavailable
@@ -415,10 +435,12 @@ static bool bcm2711_miniuart_txempty(struct uart_dev_s *dev)
  *
  ***************************************************************************/
 
-static bool bcm2711_miniuart_rxavailable(struct uart_dev_s *dev)
+/*static bool bcm2711_miniuart_rxavailable(struct uart_dev_s *dev)
 {
-  return getreg32(BCM_AUX_MU_STAT_REG) & BCM_AUX_MU_STAT_SYMAVAIL;
-}
+  bool retValue = !(getreg32(BCM_PL011_FR_ADDR) & (1 << 4));
+  minfo("[bcm2711_miniuart_rxavailable] retValue: 0x%x\n", retValue);
+  return retValue;
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_wait_send
@@ -436,17 +458,20 @@ static bool bcm2711_miniuart_rxavailable(struct uart_dev_s *dev)
  *
  ***************************************************************************/
 
+/*
 static void bcm2711_miniuart_wait_send(struct uart_dev_s *dev, char c)
 {
-  while (!bcm2711_miniuart_txready(dev))
-    ;
+  // (1 << 5) indicates if the TX is full
+  while (
+    !(getreg32(BCM_PL011_FR_ADDR) & (1 << 5))
+  ) ;
 
-  /* Write byte (do I need to mask to avoid writing to LS8 baud rate
-   * bits?)
-   */
+  // Write byte (do I need to mask to avoid writing to LS8 baud rate
+  // bits?)
 
   bcm2711_miniuart_send(dev, c);
 }
+*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_send
@@ -463,10 +488,11 @@ static void bcm2711_miniuart_wait_send(struct uart_dev_s *dev, char c)
  *
  ***************************************************************************/
 
+/*
 static void bcm2711_miniuart_send(struct uart_dev_s *dev, int c)
 {
-  putreg32(c, BCM_AUX_MU_IO_REG);
-}
+  putreg32(c, BCM_PL011_DATA_REGISTER_ADDR);
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_receive
@@ -485,14 +511,14 @@ static void bcm2711_miniuart_send(struct uart_dev_s *dev, int c)
  *
  ***************************************************************************/
 
+ /*
 static int bcm2711_miniuart_receive(struct uart_dev_s *dev,
                                     unsigned int *status)
 {
-  /* TODO proper status */
-
-  *status = 0;                               /* OK */
-  return getreg32(BCM_AUX_MU_IO_REG) & 0xff; /* Read byte */
-}
+  // TODO proper status
+  *status = 0;
+  return getreg32(BCM_PL011_DATA_REGISTER_ADDR) & 0xFF;
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_ioctl
@@ -510,6 +536,7 @@ static int bcm2711_miniuart_receive(struct uart_dev_s *dev,
  *
  ***************************************************************************/
 
+ /*
 static int bcm2711_miniuart_ioctl(struct file *filep, int cmd,
                                   unsigned long arg)
 {
@@ -519,17 +546,17 @@ static int bcm2711_miniuart_ioctl(struct file *filep, int cmd,
 
   switch (cmd)
     {
-    case TIOCSBRK: /* BSD compatibility: Turn break on, unconditionally */
-    case TIOCCBRK: /* BSD compatibility: Turn break off, unconditionally */
+    case TIOCSBRK: // BSD compatibility: Turn break on, unconditionally 
+    case TIOCCBRK: // BSD compatibility: Turn break off, unconditionally 
     default:
       ret = -ENOTTY;
       break;
     }
 
-  /* TODO: implement actual commands */
+  // TODO: implement actual commands
 
   return ret;
-}
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_attach
@@ -553,7 +580,7 @@ static int bcm2711_miniuart_ioctl(struct file *filep, int cmd,
  *   Zero (OK) on success; a negated errno value is returned on any failure.
  *
  ***************************************************************************/
-
+/*
 static int bcm2711_miniuart_attach(struct uart_dev_s *dev)
 {
   int ret = -ENOSYS;
@@ -562,20 +589,21 @@ static int bcm2711_miniuart_attach(struct uart_dev_s *dev)
 
   DEBUGASSERT(port != NULL);
 
-  /* Attach interrupt handler. TODO: this is for all AUX interrupts */
+  // Attach interrupt handler. TODO: this is for all AUX interrupts
 
-  ret = irq_attach(BCM_IRQ_VC_AUX, bcm2711_miniuart_irq_handler, dev);
+  unsigned IRQn = 121 + 32;
+  ret = irq_attach(IRQn, bcm2711_miniuart_irq_handler, dev);
 
-  /* Set interrupt priority in GICv2 */
+  // Set interrupt priority in GICv2
 
-  arm64_gic_irq_set_priority(BCM_IRQ_VC_AUX, 0, IRQ_TYPE_LEVEL);
+  arm64_gic_irq_set_priority(IRQn, 0, IRQ_TYPE_LEVEL);
 
-  /* Enable UART interrupt */
+  // Enable UART interrupt
 
   if (ret == OK)
     {
-      up_enable_irq(BCM_IRQ_VC_AUX);
-      irqinfo("Attached AUX interrupt handler");
+      up_enable_irq(IRQn);
+      irqinfo("Attached AUX interrupt handler\n");
     }
   else
     {
@@ -583,7 +611,7 @@ static int bcm2711_miniuart_attach(struct uart_dev_s *dev)
     }
 
   return ret;
-}
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_detach
@@ -601,6 +629,7 @@ static int bcm2711_miniuart_attach(struct uart_dev_s *dev)
  *
  ***************************************************************************/
 
+/*
 static void bcm2711_miniuart_detach(struct uart_dev_s *dev)
 {
   const struct bcm2711_miniuart_port_s *port =
@@ -608,16 +637,16 @@ static void bcm2711_miniuart_detach(struct uart_dev_s *dev)
 
   DEBUGASSERT(port != NULL);
 
-  /* Disable the Mini UART interrupt. TODO: This will disable all AUX
-   * interrupts
-   */
+  // Disable the Mini UART interrupt. TODO: This will disable all AUX
+   // interrupts
+   //
 
   up_disable_irq(BCM_IRQ_VC_AUX);
 
-  /* Detach the interrupt handler */
+  // Detach the interrupt handler 
 
   irq_detach(BCM_IRQ_VC_AUX);
-}
+}*/
 
 /***************************************************************************
  * Name: bcm2711_miniuart_irq_handler
@@ -635,7 +664,7 @@ static void bcm2711_miniuart_detach(struct uart_dev_s *dev)
  *
  ***************************************************************************/
 
-static int bcm2711_miniuart_irq_handler(int irq, void *context, void *arg)
+/*static int bcm2711_miniuart_irq_handler(int irq, void *context, void *arg)
 {
   int ret = OK;
   struct uart_dev_s *dev = (struct uart_dev_s *)arg;
@@ -644,57 +673,75 @@ static int bcm2711_miniuart_irq_handler(int irq, void *context, void *arg)
 
   DEBUGASSERT(dev != NULL && port != NULL);
 
-  /* Check if the interrupt is the Mini UART, return early otherwise. */
+  // Check if the interrupt is the Mini UART, return early otherwise.
 
-  if (!(getreg32(BCM_AUX_IRQ) & BCM_AUX_IRQ_MU))
-    {
+  const unsigned interruptStatusRegister = getreg32(BCM_PL011_RISR_ADDR);
+  //minfo("[bcm2711_miniuart_irq_handler] interruptStatusRegister: 0x%x\n", interruptStatusRegister);
+  if (!(interruptStatusRegister)) {
       return ret;
-    }
+  }
 
-  /* Check the Mini UART interrupt status */
+  // Check the Mini UART interrupt status
 
-  uint32_t aux_iir = getreg32(BCM_AUX_MU_IIR_REG);
-  if (aux_iir & BCM_AUX_MU_IIR_PENDING)
-    {
-      /* Bit is set when no interrupt is pending */
+  unsigned aux_iir = getreg32(BCM_PL011_MISR_ADDR);
+  //if (aux_iir != 0x0)
+  //  minfo("[bcm2711_miniuart_irq_handler] aux_iir: 0x%x\n", aux_iir);
+  //if (aux_iir & BCM_AUX_MU_IIR_PENDING) {
+  //    //Bit is set when no interrupt is pending 
+//
+  //    return ret;
+  //  }
 
-      return ret;
-    }
+  // Check interrupt ID //
+  //if (aux_iir != 0x20) {
+  //  minfo("aux_iir 0x%x\n", aux_iir);
+  //  reboot();
+  //}
+  
+  if (aux_iir & (1 << 4)) {
+    uart_recvchars(dev);
+    putreg32(1 << 4, BCM_PL011_ICR);
+  }
 
-  /* Check interrupt ID */
+  if (aux_iir & (1 << 5)) {
+    uart_xmitchars(dev);
+  }
 
-  switch (aux_iir & 0b110)
-    {
-    case BCM_AUX_MU_IIR_RXBYTE:
-
-      /* Receiver holds valid byte */
-
-      uart_recvchars(dev);
-      break;
-
-    case BCM_AUX_MU_IIR_TXEMPTY:
-
-      /* Transmit holding register is empty */
-
-      uart_xmitchars(dev);
-      break;
-
-    case BCM_AUX_MU_IIR_NONE:
-
-      /* No interrupt, do nothing */
-
-      break;
-
-    default:
-
-      /* Impossible case of 0b11 */
-
-      ret = -EIO;
-      break;
-    }
-
+  //switch (aux_iir & 0x3ff)
+  //  {
+  //  case (1 << 4):
+//
+  //    //Receiver holds valid byte
+//
+  //    minfo("calling aux_iir: 0x%x\n", aux_iir);
+  //    reboot();
+  //    uart_recvchars(dev);
+  //    putreg32(1 << 4, BCM_PL011_ICR);
+  //    break;
+//
+  //  case (1 << 5): // 0x20
+//
+  //    // Transmit holding register is empty
+  //      // we have free space in the FIFO
+  //    uart_xmitchars(dev);
+  //    break;
+//
+  //  case BCM_AUX_MU_IIR_NONE:
+//
+  //    //No interrupt, do nothing
+//
+  //    break;
+//
+  //  default:
+//
+  //    // Impossible case of 0b11
+//
+  //    ret = -EIO;
+  //    break;
+  //  }
+//
   return ret;
-}
+}*/
 
 /***************************************************************************
  * Public Functions
@@ -713,10 +760,13 @@ static int bcm2711_miniuart_irq_handler(int irq, void *context, void *arg)
  *
  ***************************************************************************/
 
+ extern void pl011_earlyserialinit(void);
 void arm64_earlyserialinit(void)
 {
+  pl011_earlyserialinit();
+  return;
 #ifdef CONSOLE_DEV
-  bcm2711_miniuart_setup(&CONSOLE_DEV);
+  //bcm2711_miniuart_setup(&CONSOLE_DEV);
 #endif
 }
 
@@ -732,23 +782,26 @@ void arm64_earlyserialinit(void)
  *
  ***************************************************************************/
 
+ /*
 void up_putc(int ch)
 {
-#ifdef CONSOLE_DEV
+  arm64_lowputc(ch);
+  return;
+#ifdef CONSOLE_DEV  
   struct uart_dev_s *dev = &CONSOLE_DEV;
 
-  /* Check for LF */
+  //Check for LF 
 
   if (ch == '\n')
     {
-      /* Add CR */
+      // Add CR
 
       bcm2711_miniuart_wait_send(dev, '\r');
     }
 
   bcm2711_miniuart_wait_send(dev, ch);
-#endif /* CONSOLE_DEV */
-}
+#endif // CONSOLE_DEV
+}*/
 
 /***************************************************************************
  * Name: arm64_serialinit
@@ -762,8 +815,10 @@ void up_putc(int ch)
  *
  ***************************************************************************/
 
+ extern void pl011_serialinit(void);
 void arm64_serialinit(void)
 {
+  pl011_serialinit();
 #if defined(CONSOLE_DEV)
 
   /* Mark the console. */

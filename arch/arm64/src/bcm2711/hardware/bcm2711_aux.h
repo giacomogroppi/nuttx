@@ -40,6 +40,13 @@
 
 /* BCM2711 mini UART register offsets. */
 
+#define BCM_PL011_DATA_REGISTER_ADDR    (BCM_AUX_BASEADDR + 0x0)
+#define BCM_PL011_FR_ADDR               (BCM_AUX_BASEADDR + 0x18)
+#define BCM_PL011_IMSC_ADDR             (BCM_AUX_BASEADDR + 0x38)
+#define BCM_PL011_RISR_ADDR             (BCM_AUX_BASEADDR + 0x3C)
+#define BCM_PL011_MISR_ADDR             (BCM_AUX_BASEADDR + 0x40)
+#define BCM_PL011_ICR                   (BCM_AUX_BASEADDR + 0x44)
+
 #define BCM_AUX_MU_IO_REG_OFFSET 0x40   /* Mini UART I/O Data */
 #define BCM_AUX_MU_IER_REG_OFFSET 0x44  /* Mini UART interrupt enable */
 #define BCM_AUX_MU_IIR_REG_OFFSET 0x48  /* Mini UART interrupt identify */

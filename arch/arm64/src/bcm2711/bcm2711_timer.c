@@ -30,8 +30,53 @@
  * Public Functions
  ****************************************************************************/
 
+#define MRS(reg) ({\
+    uint64_t _temp;\
+    asm volatile("mrs %0, " #reg "\n\r" : "=r"(_temp));\
+    _temp;\
+})
+
+static uint64_t frequency;
+static inline uint64_t arm_arch_timer_count(void)
+{
+  return MRS(CNTVCT_EL0);
+}
+
+static inline uint64_t arm_arch_timer_get_cntfrq(void)
+{
+  return MRS(CNTFRQ_EL0);
+}
+
+#include <stdio.h>
+
+unsigned long get_current_nanosecond(void);
+unsigned long get_current_nanosecond()
+{
+  unsigned long ticks = arm_arch_timer_count();
+  //printf("ticks: %ld; frequency: %ld\n", ticks, frequency);
+  return ticks * 1000000000UL / frequency;
+}
+
+unsigned long get_affinity(void);
+unsigned long get_affinity(void)
+{
+  return MRS(MPIDR_EL1);
+}
+
+int get_current_timer_nanoseconds(clockid_t, struct timespec *time)
+{
+  uint64_t nanoseconds = get_current_nanosecond();
+  time->tv_sec = nanoseconds / 1000000000UL;
+  time->tv_nsec = nanoseconds % 1000000000UL;
+
+  //printf("nanoseconds: %ld; time->tv_sec: %ld; time->tv_nsec: %ld\n", nanoseconds, time->tv_sec, time->tv_nsec);
+
+  return 0;
+}
+
 void up_timer_initialize(void)
 {
+  frequency = arm_arch_timer_get_cntfrq();
   up_alarm_set_lowerhalf(arm64_oneshot_initialize());
 }
 

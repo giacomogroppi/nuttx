@@ -235,7 +235,7 @@ uintptr_t g_kernel_pgt_pbase = (uintptr_t)&base_xlat_table;
 
 /* Translation table control register settings */
 
-static uint64_t get_tcr(int el)
+static uint64_t __attribute__((unused)) get_tcr(int el)
 {
   uint64_t tcr;
   uint64_t va_bits = CONFIG_ARM64_VA_BITS;
@@ -325,7 +325,7 @@ static void set_pte_table_desc(uint64_t *pte, uint64_t *table,
   *pte = PTE_TABLE_DESC | (uint64_t)table;
 }
 
-static void set_pte_block_desc(uint64_t *pte, uint64_t addr_pa,
+static __attribute__((unused)) void set_pte_block_desc(uint64_t *pte, uint64_t addr_pa,
                                unsigned int attrs, unsigned int level)
 {
   uint64_t desc = addr_pa;
@@ -421,7 +421,7 @@ static uint64_t *new_prealloc_table(void)
 
 /* Splits a block into table with entries spanning the old block */
 
-static void split_pte_block_desc(uint64_t *pte, int level)
+static __attribute__((unused)) void split_pte_block_desc(uint64_t *pte, int level)
 {
   uint64_t old_block_desc = *pte;
   uint64_t *new_table;
@@ -454,7 +454,7 @@ static void split_pte_block_desc(uint64_t *pte, int level)
 
 /* Create/Populate translation table(s) for given region */
 
-static void init_xlat_tables(const struct arm_mmu_region *region)
+static __attribute__((noinline)) void init_xlat_tables(const struct arm_mmu_region *region)
 {
   unsigned int level = XLAT_TABLE_BASE_LEVEL;
   uint64_t virt = region->base_va;
@@ -464,6 +464,9 @@ static void init_xlat_tables(const struct arm_mmu_region *region)
   uint64_t *pte;
   uint64_t *new_table;
   uint64_t level_size;
+
+  (void) new_table;
+  (void) attrs;
 
 #ifdef CONFIG_MMU_DEBUG
   sinfo("mmap: virt %lux phys %lux size %lux\n", virt, phys, size);
@@ -483,6 +486,7 @@ static void init_xlat_tables(const struct arm_mmu_region *region)
       /* Locate PTE for given virtual address and page table level */
 
       pte = calculate_pte_index(virt, level);
+      (void) pte;
       __MMU_ASSERT(pte != NULL, "pte not found\n");
 
       level_size = 1ULL << LEVEL_TO_VA_SIZE_SHIFT(level);
@@ -522,7 +526,7 @@ static void init_xlat_tables(const struct arm_mmu_region *region)
     }
 }
 
-static void setup_page_tables(void)
+static __attribute__((noinline)) void setup_page_tables(void)
 {
   uint64_t max_va = 0, max_pa = 0;
   const struct arm_mmu_region *region;
@@ -596,7 +600,7 @@ static void enable_mmu_el3(unsigned int flags)
 #endif
 }
 #else
-static void enable_mmu_el1(unsigned int flags)
+static __attribute__((noinline)) void enable_mmu_el1(unsigned int flags)
 {
   uint64_t value;
   UNUSED(flags);
@@ -660,6 +664,9 @@ int arm64_mmu_set_memregion(const struct arm_mmu_region *region)
 
 int arm64_mmu_init(bool is_primary_core)
 {
+#ifdef CONFIG_RUNNING_ON_XEN
+  return 0;
+#endif
   uint64_t val;
   uint64_t el;
   unsigned flags = 0;

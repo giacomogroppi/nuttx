@@ -186,27 +186,27 @@
 
 struct pl011_regs
 {
-  uint32_t dr;   /* data register */
-  union
+  /* 0x0 */uint32_t dr;   /* data register */
+  /* 0x4 */ union
   {
     uint32_t rsr;
     uint32_t ecr;
   };
 
-  uint32_t reserved_0[4];
-  uint32_t fr;   /* flags register */
-  uint32_t reserved_1;
-  uint32_t ilpr;
-  uint32_t ibrd;
-  uint32_t fbrd;
-  uint32_t lcr_h;
-  uint32_t cr;
-  uint32_t ifls;
-  uint32_t imsc;
-  uint32_t ris;
-  uint32_t mis;
-  uint32_t icr;
-  uint32_t dmacr;
+  /*  */ uint32_t reserved_0[4];
+  /* 0x18 */ uint32_t fr;   /* flags register */
+  /* 0x1C */ uint32_t reserved_1;
+  /* 0x20 */ uint32_t ilpr;
+  /* 0x24 */ uint32_t ibrd;
+  /* 0x28 */ uint32_t fbrd;
+  /* 0x2C */ uint32_t lcr_h;
+  /* 0x30 */ uint32_t cr;
+  /* 0x34 */ uint32_t ifls;
+  /* 0x38 */ uint32_t imsc;
+  /* 0x3C */ uint32_t ris;
+  /* 0x40 */ uint32_t mis;
+  /* 0x44 */ uint32_t icr;
+  /* 0x48 */ uint32_t dmacr;
 };
 
 struct pl011_config
@@ -303,11 +303,20 @@ static struct pl011_uart_port_s g_uart0priv =
 
   .config =
     {
-      .uart         = (FAR volatile struct pl011_regs *)CONFIG_UART0_BASE,
+      .uart         = (FAR volatile struct pl011_regs *)
+#ifdef CONFIG_RUNNING_ON_XEN
+      0x22000000,
+#else
+      0x107D001000UL,
+#endif
       .sys_clk_freq = CONFIG_UART0_CLK_FREQ,
     },
 
-    .irq_num    = CONFIG_UART0_IRQ,
+#ifdef CONFIG_RUNNING_ON_XEN
+    .irq_num    = 32, //CONFIG_UART0_IRQ,
+#else
+    .irq_num    = 153,
+#endif
     .lock       = SP_UNLOCKED,
 };
 
@@ -544,8 +553,23 @@ static int pl011_set_baudrate(FAR const struct pl011_uart_port_s *sport,
       return -EINVAL;
     }
 
-  config->uart->ibrd    = bauddiv >> PL011_FBRD_WIDTH;
-  config->uart->fbrd    = bauddiv & ((1U << PL011_FBRD_WIDTH) - 1U);
+  //const unsigned ibrd = bauddiv >> PL011_FBRD_WIDTH;
+  
+  //if (ibrd != 44000000 / (115200 * 16))
+  //  reboot();
+  
+
+  const unsigned nBaudrate = 115200;
+	const unsigned nClockRate = 44000000;
+		
+	unsigned nBaud16 = nBaudrate * 16;
+	unsigned nIntDiv = nClockRate / nBaud16;
+	unsigned nFractDiv2 = (nClockRate % nBaud16) * 8 / nBaudrate;
+	unsigned nFractDiv = nFractDiv2 / 2 + nFractDiv2 % 2;
+
+
+  config->uart->ibrd    = nIntDiv;// ibrd;
+  config->uart->fbrd    = nFractDiv;// bauddiv & ((1U << PL011_FBRD_WIDTH) - 1U);
 
   /* In order to internally update the contents of ibrd or fbrd, a
    * lcr_h write must always be performed at the end
