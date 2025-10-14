@@ -284,7 +284,7 @@ endif # BCM2711_SPI
 config RUNNING_ON_XEN
 	bool "is running on xen"
 	default n
-	--help--
+	---help---
 		Specify if the OS is running on top of xen.
 
 endmenu # Broadcom BCM2711 Peripheral Selection
