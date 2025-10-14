@@ -819,8 +819,8 @@ void up_putc(int ch)
 void arm64_serialinit(void)
 {
   pl011_serialinit();
+  return;
 #if defined(CONSOLE_DEV)
-
   /* Mark the console. */
 
   CONSOLE_DEV.isconsole = 1;
