@@ -53,8 +53,9 @@ unsigned long get_current_nanosecond(void);
 unsigned long get_current_nanosecond()
 {
   unsigned long ticks = arm_arch_timer_count();
-  //printf("ticks: %ld; frequency: %ld\n", ticks, frequency);
-  return ticks * 1000000000UL / frequency;
+  unsigned long ret = (double) ticks * ((double) 1000000000.0 / (double)frequency);
+  //printf("ticks: %lu; frequency: %lu; ret: %lu\n", ticks, frequency, ret);
+  return ret;
 }
 
 unsigned long get_affinity(void);
