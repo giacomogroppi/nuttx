@@ -203,9 +203,45 @@ static inline int arm64_dcache_range(uintptr_t start_addr,
 
 /* operation for all data cache */
 
+static void inline arm64_dcache_execute (int op, unsigned dc_val)
+{
+  switch (op)
+  {
+    case CACHE_OP_WB:
+    {
+      dc_ops("csw", dc_val);
+      break;
+    }
+
+    case CACHE_OP_INVD:
+    {
+      dc_ops("isw", dc_val);
+      break;
+    }
+
+    case CACHE_OP_WB_INVD:
+    {
+      dc_ops("cisw", dc_val);
+      break;
+    }
+    default:
+    {
+      DEBUGASSERT(0);
+    }
+  };
+}
+
 static inline int arm64_dcache_all(int op)
 {
-  uint64_t  clidr_el1;
+  /* Data barrier before start */
+  UP_DSB();
+
+
+#ifdef CONFIG_RUNNING_ON_XEN
+  // xen is going to flush all our cache with just one cisw instruction 
+  arm64_dcache_execute(op, 0);
+#else
+uint64_t  clidr_el1;
   uint64_t  csselr_el1;
   uint64_t  ccsidr_el1;
   uint8_t   loc;
@@ -218,10 +254,6 @@ static inline int arm64_dcache_all(int op)
   uint32_t  dc_val;
   uint32_t  set;
   uint32_t  way;
-
-  /* Data barrier before start */
-
-  UP_DSB();
 
   clidr_el1 = read_sysreg(clidr_el1);
 
@@ -277,33 +309,11 @@ static inline int arm64_dcache_all(int op)
               /* set number, aligned to pos in DC operand */
 
               dc_val |= set << line_size;
-              switch (op)
-                {
-                  case CACHE_OP_WB:
-                    {
-                      dc_ops("csw", dc_val);
-                      break;
-                    }
-
-                  case CACHE_OP_INVD:
-                    {
-                      dc_ops("isw", dc_val);
-                      break;
-                    }
-
-                  case CACHE_OP_WB_INVD:
-                    {
-                      dc_ops("cisw", dc_val);
-                      break;
-                    }
-                  default:
-                    {
-                      DEBUGASSERT(0);
-                    }
-                }
+              arm64_dcache_execute(op, dc_val);
             }
         }
     }
+#endif
 
   /* Restore csselr_el1 to level 0 */
 
