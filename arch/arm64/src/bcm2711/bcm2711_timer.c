@@ -36,6 +36,11 @@
     _temp;\
 })
 
+static inline uint64_t arm64_arch_get_cpu_counter(void)
+{
+  return MRS(PMCCNTR_EL0);
+}
+
 static uint64_t frequency;
 static inline uint64_t arm_arch_timer_count(void)
 {
@@ -52,10 +57,17 @@ static inline uint64_t arm_arch_timer_get_cntfrq(void)
 unsigned long get_current_nanosecond(void);
 unsigned long get_current_nanosecond()
 {
-  unsigned long ticks = arm_arch_timer_count();
-  unsigned long ret = (double) ticks * ((double) 1000000000.0 / (double)frequency);
-  //printf("ticks: %lu; frequency: %lu; ret: %lu\n", ticks, frequency, ret);
-  return ret;
+  const unsigned old = 0;
+  if (old) {
+    unsigned long ticks = arm_arch_timer_count();
+    unsigned long ret = (double) ticks * ((double) 1000000000.0 / (double)frequency);
+    //printf("ticks: %lu; frequency: %lu; ret: %lu\n", ticks, frequency, ret);
+    return ret;
+  } else {
+    //printf("returning arm64_arch_get_cpu_counter(): %lu\n", arm64_arch_get_cpu_counter());
+    const double m = 1. / 2.4;
+    return ((double) arm64_arch_get_cpu_counter()) * m;
+  }
 }
 
 unsigned long get_affinity(void);
@@ -78,6 +90,27 @@ int get_current_timer_nanoseconds(clockid_t, struct timespec *time)
 void up_timer_initialize(void)
 {
   frequency = arm_arch_timer_get_cntfrq();
+
+  uint64_t val = 0;
+
+  // 1. Consenti accesso a PMU anche a EL0 (facoltativo se sei in EL1)
+  val = 1;
+  asm volatile("msr PMUSERENR_EL0, %0" :: "r"(val));
+
+  // 2. Abilita la PMU: reset contatori, reset ciclo, enable
+  val = (1 << 0) | (1 << 1) | (1 << 2);
+  asm volatile("msr PMCR_EL0, %0" :: "r"(val));
+
+  // 3. Abilita il contatore cicli PMCCNTR_EL0 (bit 31 in PMCNTENSET_EL0)
+  val = (1 << 31);
+  asm volatile("msr PMCNTENSET_EL0, %0" :: "r"(val));
+
+  // 4. Pulisce eventuali flag di overflow
+  asm volatile("msr PMOVSCLR_EL0, %0" :: "r"(val));
+
+  // 5. (Opzionale) ISB per sincronizzare scritture dei registri di sistema
+  asm volatile("isb");
+
   up_alarm_set_lowerhalf(arm64_oneshot_initialize());
 }
 
