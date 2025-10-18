@@ -42,7 +42,7 @@ static inline uint64_t arm64_arch_get_cpu_counter(void)
 }
 
 static uint64_t frequency;
-static inline uint64_t arm_arch_timer_count(void)
+uint64_t arm_arch_timer_count(void)
 {
   return MRS(CNTVCT_EL0);
 }
